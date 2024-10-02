@@ -11,11 +11,21 @@ const WAY_IDX: &str = "way.idx";
 const WAY_DATA: &str = "way.data";
 const WAY_FREE: &str = "way.free";
 
-// Size of a node-id stored in node.crd or way.data
-const NODE_ID_SIZE: usize = 5;
-// Size of a way pointer in way.idx to way.data
-const WAY_PTR_SIZE: usize = 5;
+/// Size of a node-id stored in node.crd or way.data
+pub const NODE_ID_SIZE: usize = 5;
+/// Size of a way pointer in way.idx to way.data
+pub const WAY_PTR_SIZE: usize = 5;
 
+/// Simplified OpenStreetMap database
+///
+/// Database used by `OsmBin` is stored in few files:
+/// - `node.crd`: stores latitude/longitude of node, as 2*4 bytes. File is directly indexed by node
+/// id. Not allocated nodes are not written to file, so its size is smaller than `max(node_id) *
+/// 8`, thanks to sparse files.
+/// - `way.idx`: stores a pointer into `way.data`, as [`WAY_PTR_SIZE`] bytes. File is directly
+/// indexed by way id.
+/// - `way.data`: stores a list of nodes id, as `number of nodes` (2-bytes), followed by N node-id
+/// (each using [`NODE_ID_SIZE`] bytes). File is indexed by pointer given by `way.idx`.
 pub struct OsmBin {
     dir: String,
     node_crd: File,
@@ -322,37 +332,54 @@ impl OsmBin {
     }
 }
 
+/// Node
 #[derive(Debug, PartialEq)]
 pub struct Node {
-    id: u64,
-    lat: f64,
-    lon: f64,
-    tags: Option<HashMap<String, String>>,
+    /// Node id
+    pub id: u64,
+    /// Latitude in degree
+    pub lat: f64,
+    /// Longitude in degree
+    pub lon: f64,
+    /// Tags
+    pub tags: Option<HashMap<String, String>>,
 }
 
+/// Way
 #[derive(Debug, PartialEq)]
 pub struct Way {
-    id: u64,
-    nodes: Vec<u64>,
-    tags: Option<HashMap<String, String>>,
+    /// Way id
+    pub id: u64,
+    /// List of ordered nodes
+    pub nodes: Vec<u64>,
+    /// Tags
+    pub tags: Option<HashMap<String, String>>,
 }
 
+/// Relation member
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
 pub struct Member {
+    /// node/way/relation id
     #[serde(rename = "ref")]
-    ref_: u64,
-    role: String,
+    pub ref_: u64,
+    /// Role in relation
+    pub role: String,
+    /// Type: node/way/relation
     #[serde(rename = "type")]
-    type_: String,
+    pub type_: String,
 }
 
+/// Relation
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
 pub struct Relation {
-    id: u64,
+    /// Relation id
+    pub id: u64,
+    /// List of ordered members
     #[serde(rename = "member")]
-    members: Vec<Member>,
+    pub members: Vec<Member>,
+    /// Tags
     #[serde(rename = "tag")]
-    tags: Option<HashMap<String, String>>,
+    pub tags: Option<HashMap<String, String>>,
 }
 
 #[cfg(test)]

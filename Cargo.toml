@@ -2,6 +2,8 @@
 name = "osmbin_rust"
 version = "0.1.0"
 edition = "2021"
+description = "Library to handle OsmBin format for OpenStreetMap"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
