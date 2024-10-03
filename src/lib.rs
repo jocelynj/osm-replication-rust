@@ -1,6 +1,8 @@
+use osmpbfreader;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
+use std::error::Error;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, ErrorKind};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -84,6 +86,73 @@ impl OsmBin {
                 _ => panic!("Error with directory {dir}: {error}"),
             },
         };
+    }
+
+    pub fn import(&mut self, filename: &str) -> Result<(), Box<dyn Error>> {
+        let r = File::open(&Path::new(filename)).unwrap();
+        let mut pbf = osmpbfreader::OsmPbfReader::new(r);
+
+        for obj in pbf.iter() {
+            let obj = obj?;
+            match obj {
+                osmpbfreader::OsmObj::Node(node) => {
+                    self.write_node(&Node {
+                        id: node.id.0 as u64,
+                        lat: node.lat(),
+                        lon: node.lon(),
+                        tags: None,
+                    })
+                    .unwrap();
+                }
+                osmpbfreader::OsmObj::Way(way) => {
+                    let nodes: Vec<u64> = way.nodes.iter().map(|x| x.0 as u64).collect();
+                    self.write_way(&Way {
+                        id: way.id.0 as u64,
+                        nodes,
+                        tags: None,
+                    })
+                    .unwrap();
+                }
+                osmpbfreader::OsmObj::Relation(relation) => {
+                    let mut members: Vec<Member> = Vec::new();
+                    for r in relation.refs {
+                        let ref_: u64;
+                        let type_: String;
+                        match r.member {
+                            osmpbfreader::objects::OsmId::Node(id) => {
+                                ref_ = id.0 as u64;
+                                type_ = String::from("node");
+                            }
+                            osmpbfreader::objects::OsmId::Way(id) => {
+                                ref_ = id.0 as u64;
+                                type_ = String::from("way");
+                            }
+                            osmpbfreader::objects::OsmId::Relation(id) => {
+                                ref_ = id.0 as u64;
+                                type_ = String::from("relation");
+                            }
+                        }
+                        members.push(Member {
+                            ref_,
+                            type_,
+                            role: r.role.to_string(),
+                        })
+                    }
+                    let mut tags: HashMap<String, String> = HashMap::new();
+                    for (k, v) in relation.tags.into_inner() {
+                        tags.insert(k.to_string(), v.to_string());
+                    }
+                    self.write_relation(&Relation {
+                        id: relation.id.0 as u64,
+                        members,
+                        tags: Some(tags),
+                    })
+                    .unwrap();
+                }
+            }
+        }
+
+        Ok(())
     }
 
     pub fn read_node(&mut self, id: u64) -> Option<Node> {

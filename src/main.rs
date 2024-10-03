@@ -26,6 +26,10 @@ fn main() {
     if args.command.init {
         osmbin_rust::OsmBin::init(&args.dir);
     }
+    if args.command.import.is_some() {
+        let mut osmbin = osmbin_rust::OsmBin::new(&args.dir).unwrap();
+        osmbin.import(&args.command.import.unwrap()).unwrap();
+    }
     if !args.command.read.is_empty() {
         let elem = args.command.read[0].clone();
         let id: u64 = args.command.read[1]
