@@ -90,14 +90,20 @@ impl OsmBin {
         self.node_crd
             .seek(SeekFrom::Start(id * 8))
             .expect("Could not seek");
-        let mut buffer = [0u8; 8];
-        let read_count = self.node_crd.read(&mut buffer).expect("Could not read");
+        let mut lat_buffer = [0u8; 4];
+        let mut lon_buffer = [0u8; 4];
+        let lat_read_count = self.node_crd.read(&mut lat_buffer).expect("Could not read");
+        let lon_read_count = self.node_crd.read(&mut lon_buffer).expect("Could not read");
 
-        if read_count == 0 || buffer == [0u8; 8] {
+        if lat_read_count == 0
+            || lon_read_count == 0
+            || lat_buffer == [0u8; 4]
+            || lon_buffer == [0u8; 4]
+        {
             return None;
         }
-        let lat = Self::bytes4_to_coord(&buffer[..4]);
-        let lon = Self::bytes4_to_coord(&buffer[4..]);
+        let lat = Self::bytes4_to_coord(&lat_buffer);
+        let lon = Self::bytes4_to_coord(&lon_buffer);
 
         Some(Node {
             id,
@@ -251,61 +257,40 @@ impl OsmBin {
         Ok(())
     }
 
-    fn bytes5_to_int(d: &[u8]) -> u64 {
-        4294967296 * (d[0] as u64)
-            + 16777216 * (d[1] as u64)
-            + 65536 * (d[2] as u64)
-            + 256 * (d[3] as u64)
-            + (d[4] as u64)
+    fn bytes5_to_int(d: &[u8; 5]) -> u64 {
+        let mut arr: Vec<u8> = Vec::with_capacity(8);
+        arr.extend([0; 3]);
+        arr.extend(d);
+        u64::from_be_bytes(arr.as_slice().try_into().unwrap())
     }
-    fn int_to_bytes5(d: u64) -> Vec<u8> {
-        let mut d = d;
-        let mut v: Vec<u8> = Vec::new();
-        v.push((d / 4294967296) as u8);
-        d -= (v[0] as u64) * 4294967296;
-        v.push((d / 16777216) as u8);
-        d -= (v[1] as u64) * 16777216;
-        v.push((d / 65536) as u8);
-        d -= (v[2] as u64) * 65536;
-        v.push((d / 256) as u8);
-        d -= (v[3] as u64) * 256;
-        v.push(d as u8);
-        v
+    fn int_to_bytes5(d: u64) -> [u8; 5] {
+        if d > 2_u64.pow(5 * 8) {
+            panic!("Integer {d:#x} do not fit on 5 bytes");
+        }
+        let v = d.to_be_bytes();
+        let arr: [u8; 5] = v[3..8].try_into().unwrap();
+        arr
     }
 
-    fn bytes4_to_int(d: &[u8]) -> u32 {
-        16777216 * (d[0] as u32) + 65536 * (d[1] as u32) + 256 * (d[2] as u32) + (d[3] as u32)
+    fn bytes4_to_int(d: &[u8; 4]) -> u32 {
+        u32::from_be_bytes(*d)
     }
-    fn int_to_bytes4(d: u32) -> Vec<u8> {
-        let mut d = d;
-        let mut v: Vec<u8> = Vec::new();
-        v.push((d / 16777216) as u8);
-        d -= (v[0] as u32) * 16777216;
-        v.push((d / 65536) as u8);
-        d -= (v[1] as u32) * 65536;
-        v.push((d / 256) as u8);
-        d -= (v[2] as u32) * 256;
-        v.push(d as u8);
-        v
+    fn int_to_bytes4(d: u32) -> [u8; 4] {
+        d.to_be_bytes()
     }
 
-    fn bytes4_to_coord(d: &[u8]) -> f64 {
+    fn bytes4_to_coord(d: &[u8; 4]) -> f64 {
         (((Self::bytes4_to_int(d) as i64) - 1800000000) as f64) / 10000000.0
     }
-    fn coord_to_bytes4(d: f64) -> Vec<u8> {
+    fn coord_to_bytes4(d: f64) -> [u8; 4] {
         Self::int_to_bytes4((((d * 10000000.0) as i64) + 1800000000) as u32)
     }
 
-    fn bytes2_to_int(d: &[u8]) -> u16 {
-        256 * (d[0] as u16) + (d[1] as u16)
+    fn bytes2_to_int(d: &[u8; 2]) -> u16 {
+        u16::from_be_bytes(*d)
     }
-    fn int_to_bytes2(d: u16) -> Vec<u8> {
-        let mut d = d;
-        let mut v: Vec<u8> = Vec::new();
-        v.push((d / 256) as u8);
-        d -= (v[0] as u16) * 256;
-        v.push(d as u8);
-        v
+    fn int_to_bytes2(d: u16) -> [u8; 2] {
+        d.to_be_bytes()
     }
 
     fn to_digits(v: u64) -> Vec<u8> {
@@ -533,5 +518,45 @@ mod tests {
 
         let rel = osmbin.read_relation(2707694);
         assert_eq!(true, rel.is_none());
+    }
+
+    #[test]
+    fn bytes5_to_int() {
+        assert_eq!(0x00_00_00_00_00, OsmBin::bytes5_to_int(&[0, 0, 0, 0, 0]));
+        assert_eq!(
+            0x12_23_45_67_89,
+            OsmBin::bytes5_to_int(&[0x12, 0x23, 0x45, 0x67, 0x89])
+        );
+    }
+    #[test]
+    fn int_to_bytes5() {
+        assert_eq!([0, 0, 0, 0, 0], OsmBin::int_to_bytes5(0));
+        assert_eq!(
+            [0x12, 0x23, 0x45, 0x67, 0x89],
+            OsmBin::int_to_bytes5(0x12_23_45_67_89)
+        );
+    }
+    #[test]
+    fn bytes5() {
+        for n in 0_u64..100000_u64 {
+            assert_eq!(n, OsmBin::bytes5_to_int(&OsmBin::int_to_bytes5(n)));
+            assert_eq!(
+                14 * n,
+                OsmBin::bytes5_to_int(&OsmBin::int_to_bytes5(14 * n))
+            );
+            assert_eq!(
+                1098 * n,
+                OsmBin::bytes5_to_int(&OsmBin::int_to_bytes5(1098 * n))
+            );
+            assert_eq!(
+                4898481 * n,
+                OsmBin::bytes5_to_int(&OsmBin::int_to_bytes5(4898481 * n))
+            );
+        }
+    }
+    #[test]
+    #[should_panic]
+    fn int_to_bytes5_too_big() {
+        OsmBin::int_to_bytes5(0x99_12_23_45_67_89);
     }
 }
