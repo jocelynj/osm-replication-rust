@@ -455,10 +455,15 @@ pub struct Relation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile;
 
     #[test]
     fn read_node() {
-        let mut osmbin = OsmBin::new("/home/jocelyn/.cache/osmbin-bdd/").unwrap();
+        let tmpdir_path = tempfile::tempdir().unwrap();
+        let tmpdir = tmpdir_path.path().to_str().unwrap();
+        OsmBin::init(&tmpdir);
+        let mut osmbin = OsmBin::new(&tmpdir).unwrap();
+        osmbin.import("tests/resources/saint_barthelemy.osm.pbf").unwrap();
 
         let node = osmbin.read_node(266053077);
         assert_eq!(
@@ -494,7 +499,11 @@ mod tests {
 
     #[test]
     fn read_way() {
-        let mut osmbin = OsmBin::new("/home/jocelyn/.cache/osmbin-bdd/").unwrap();
+        let tmpdir_path = tempfile::tempdir().unwrap();
+        let tmpdir = tmpdir_path.path().to_str().unwrap();
+        OsmBin::init(&tmpdir);
+        let mut osmbin = OsmBin::new(&tmpdir).unwrap();
+        osmbin.import("tests/resources/saint_barthelemy.osm.pbf").unwrap();
 
         let way = osmbin.read_way(24473155);
         assert_eq!(true, way.is_some());
@@ -522,7 +531,11 @@ mod tests {
 
     #[test]
     fn read_relation() {
-        let osmbin = OsmBin::new("/home/jocelyn/.cache/osmbin-bdd/").unwrap();
+        let tmpdir_path = tempfile::tempdir().unwrap();
+        let tmpdir = tmpdir_path.path().to_str().unwrap();
+        OsmBin::init(&tmpdir);
+        let mut osmbin = OsmBin::new(&tmpdir).unwrap();
+        osmbin.import("tests/resources/saint_barthelemy.osm.pbf").unwrap();
 
         let rel = osmbin.read_relation(47796);
         assert_eq!(true, rel.is_some());
