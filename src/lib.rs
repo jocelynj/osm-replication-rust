@@ -98,8 +98,8 @@ impl OsmBin {
                 osmpbfreader::OsmObj::Node(node) => {
                     self.write_node(&Node {
                         id: node.id.0 as u64,
-                        lat: node.lat(),
-                        lon: node.lon(),
+                        decimicro_lat: node.decimicro_lat,
+                        decimicro_lon: node.decimicro_lon,
                         tags: None,
                     })
                     .unwrap();
@@ -171,20 +171,20 @@ impl OsmBin {
         {
             return None;
         }
-        let lat = Self::bytes4_to_coord(&lat_buffer);
-        let lon = Self::bytes4_to_coord(&lon_buffer);
+        let decimicro_lat = Self::bytes4_to_coord(&lat_buffer);
+        let decimicro_lon = Self::bytes4_to_coord(&lon_buffer);
 
         Some(Node {
             id,
-            lat,
-            lon,
+            decimicro_lat,
+            decimicro_lon,
             tags: None,
         })
     }
 
     pub fn write_node(&mut self, node: &Node) -> Result<(), io::Error> {
-        let lat = Self::coord_to_bytes4(node.lat);
-        let lon = Self::coord_to_bytes4(node.lon);
+        let lat = Self::coord_to_bytes4(node.decimicro_lat);
+        let lon = Self::coord_to_bytes4(node.decimicro_lon);
         self.node_crd.seek(SeekFrom::Start(node.id * 8)).unwrap();
         self.node_crd.write(&lat).unwrap();
         self.node_crd.write(&lon).unwrap();
@@ -348,11 +348,13 @@ impl OsmBin {
         d.to_be_bytes()
     }
 
-    fn bytes4_to_coord(d: &[u8; 4]) -> f64 {
-        (((Self::bytes4_to_int(d) as i64) - 1800000000) as f64) / 10000000.0
+    fn bytes4_to_coord(d: &[u8; 4]) -> i32 {
+        // TODO: Store directly i32 instead of converting to a positive number
+        (Self::bytes4_to_int(d) as i32) - 1800000000
     }
-    fn coord_to_bytes4(d: f64) -> [u8; 4] {
-        Self::int_to_bytes4((((d * 10000000.0) as i64) + 1800000000) as u32)
+    fn coord_to_bytes4(d: i32) -> [u8; 4] {
+        // TODO: Store directly i32 instead of converting to a positive number
+        Self::int_to_bytes4(((d as i64) + 1800000000) as u32)
     }
 
     fn bytes2_to_int(d: &[u8; 2]) -> u16 {
@@ -391,12 +393,22 @@ impl OsmBin {
 pub struct Node {
     /// Node id
     pub id: u64,
-    /// Latitude in degree
-    pub lat: f64,
-    /// Longitude in degree
-    pub lon: f64,
+    /// Latitude in decimicro degrees (10⁻⁷ degrees).
+    pub decimicro_lat: i32,
+    /// Longitude in decimicro degrees (10⁻⁷ degrees).
+    pub decimicro_lon: i32,
     /// Tags
     pub tags: Option<HashMap<String, String>>,
+}
+impl Node {
+    /// Returns the latitude of the node in degrees.
+    pub fn lat(&self) -> f64 {
+        self.decimicro_lat as f64 * 1e-7
+    }
+    /// Returns the longitude of the node in degrees.
+    pub fn lon(&self) -> f64 {
+        self.decimicro_lon as f64 * 1e-7
+    }
 }
 
 /// Way
@@ -448,8 +460,8 @@ mod tests {
         assert_eq!(
             Node {
                 id: 266053077,
-                lat: 17.9031745,
-                lon: -62.8363074,
+                decimicro_lat: (17.9031745 * 1e7) as i32,
+                decimicro_lon: (-62.8363074 * 1e7) as i32,
                 tags: None
             },
             node.unwrap()
@@ -459,8 +471,8 @@ mod tests {
         assert_eq!(
             Node {
                 id: 2619283352,
-                lat: 17.9005419,
-                lon: -62.8327042,
+                decimicro_lat: (17.9005419 * 1e7) as i32,
+                decimicro_lon: (-62.8327042 * 1e7) as i32,
                 tags: None
             },
             node.unwrap()
