@@ -72,7 +72,11 @@ impl OsmBin {
             let full_filename = Path::new(dir).join(filename);
             let f = File::create_new(full_filename);
             match f {
-                Ok(_) => (),
+                Ok(mut file) => {
+                    if filename == WAY_DATA {
+                        file.write(b"--").expect("Could not write to {filename}");
+                    }
+                }
                 Err(error) => match error.kind() {
                     ErrorKind::AlreadyExists => (),
                     _ => panic!("Error with file {filename}: {error}"),
