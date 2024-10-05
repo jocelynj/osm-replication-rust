@@ -194,7 +194,12 @@ impl OsmBin {
     pub fn write_node(&mut self, node: &Node) -> Result<(), io::Error> {
         let lat = Self::coord_to_bytes4(node.decimicro_lat);
         let lon = Self::coord_to_bytes4(node.decimicro_lon);
-        self.node_crd.seek(SeekFrom::Start(node.id * 8)).unwrap();
+        let node_crd_addr = node.id * 8;
+
+        // Try not to seek if not necessary, as seeking flushes write buffer
+        if self.node_crd.stream_position().unwrap() != node_crd_addr {
+            self.node_crd.seek(SeekFrom::Start(node_crd_addr)).unwrap();
+        }
         self.node_crd.write(&lat).unwrap();
         self.node_crd.write(&lon).unwrap();
 
@@ -253,7 +258,10 @@ impl OsmBin {
         // TODO: implement way_free
         let way_data_addr = self.way_data_size;
 
-        self.way_data.seek(SeekFrom::Start(way_data_addr))?;
+        // Try not to seek if not necessary, as seeking flushes write buffer
+        if self.way_data.stream_position().unwrap() != way_data_addr {
+            self.way_data.seek(SeekFrom::Start(way_data_addr))?;
+        }
         let num_nodes = Self::int_to_bytes2(way.nodes.len() as u16);
         self.way_data.write(&num_nodes)?;
         for n in &way.nodes {
