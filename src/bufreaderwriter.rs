@@ -218,4 +218,16 @@ impl<RW: Read + Write + Seek> Seek for BufReaderWriterRand<RW> {
             BufIO::Reader(r) => r.seek(pos),
         }
     }
+    fn stream_position(&mut self) -> io::Result<u64> {
+        match self.inner.as_mut().unwrap() {
+            BufIO::Writer(w) => {
+                let buffer_len = w.buffer().len();
+                w.get_mut().stream_position().map(|pos| {
+                    pos.checked_add(buffer_len as u64)
+                        .expect("overflow when adding buffer size to inner stream position")
+                })
+            }
+            BufIO::Reader(r) => r.stream_position(),
+        }
+    }
 }
