@@ -8,6 +8,8 @@ use std::io::{self, ErrorKind};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
+mod bufreaderwriter;
+
 const NODE_CRD: &str = "node.crd";
 const WAY_IDX: &str = "way.idx";
 const WAY_DATA: &str = "way.data";
@@ -30,9 +32,9 @@ pub const WAY_PTR_SIZE: usize = 5;
 /// (each using [`NODE_ID_SIZE`] bytes). File is indexed by pointer given by `way.idx`.
 pub struct OsmBin {
     dir: String,
-    node_crd: File,
-    way_idx: File,
-    way_data: File,
+    node_crd: bufreaderwriter::BufReaderWriterRand<File>,
+    way_idx: bufreaderwriter::BufReaderWriterRand<File>,
+    way_data: bufreaderwriter::BufReaderWriterRand<File>,
     way_data_size: u64,
     way_free: File,
 }
@@ -42,10 +44,13 @@ impl OsmBin {
         let mut file_options = OpenOptions::new();
         file_options.read(true).write(true);
         let node_crd = file_options.open(Path::new(dir).join(NODE_CRD))?;
+        let node_crd = bufreaderwriter::BufReaderWriterRand::new_reader(node_crd);
         let way_idx = file_options.open(Path::new(dir).join(WAY_IDX))?;
+        let way_idx = bufreaderwriter::BufReaderWriterRand::new_reader(way_idx);
 
         let way_data = file_options.open(Path::new(dir).join(WAY_DATA))?;
         let way_data_size = way_data.metadata()?.len();
+        let way_data = bufreaderwriter::BufReaderWriterRand::new_reader(way_data);
 
         let way_free = file_options.open(Path::new(dir).join(WAY_FREE))?;
 
