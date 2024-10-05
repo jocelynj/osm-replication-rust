@@ -2,6 +2,7 @@ use osmpbfreader;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
+use std::cmp;
 use std::error::Error;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, ErrorKind};
@@ -35,8 +36,10 @@ pub struct OsmBin {
     node_crd: bufreaderwriter::BufReaderWriterRand<File>,
     way_idx: bufreaderwriter::BufReaderWriterRand<File>,
     way_data: bufreaderwriter::BufReaderWriterRand<File>,
-    way_data_size: u64,
     way_free: File,
+
+    way_idx_size: u64,
+    way_data_size: u64,
 }
 
 impl OsmBin {
@@ -46,6 +49,7 @@ impl OsmBin {
         let node_crd = file_options.open(Path::new(dir).join(NODE_CRD))?;
         let node_crd = bufreaderwriter::BufReaderWriterRand::new_reader(node_crd);
         let way_idx = file_options.open(Path::new(dir).join(WAY_IDX))?;
+        let way_idx_size = way_idx.metadata()?.len();
         let way_idx = bufreaderwriter::BufReaderWriterRand::new_reader(way_idx);
 
         let way_data = file_options.open(Path::new(dir).join(WAY_DATA))?;
@@ -59,8 +63,9 @@ impl OsmBin {
             node_crd,
             way_idx,
             way_data,
-            way_data_size,
             way_free,
+            way_idx_size,
+            way_data_size,
         })
     }
 
@@ -254,7 +259,12 @@ impl OsmBin {
         })
     }
     pub fn write_way(&mut self, way: &Way) -> Result<(), io::Error> {
-        self.delete_way(&way)?;
+        let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
+
+        // Only need to delete way if it could be inside file
+        if way_idx_addr < self.way_idx_size {
+            self.delete_way(&way)?;
+        }
         // TODO: implement way_free
         let way_data_addr = self.way_data_size;
 
@@ -269,11 +279,14 @@ impl OsmBin {
             self.way_data.write(&node)?;
         }
 
-        self.way_idx
-            .seek(SeekFrom::Start(way.id * (WAY_PTR_SIZE as u64)))?;
+        // Try not to seek if not necessary, as seeking flushes write buffer
+        if self.way_idx.stream_position().unwrap() != way_idx_addr {
+            self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
+        }
         let buffer = Self::int_to_bytes5(way_data_addr);
         self.way_idx.write(&buffer)?;
 
+        self.way_idx_size = cmp::max(self.way_idx_size, self.way_idx.stream_position().unwrap());
         self.way_data_size += 2 + (NODE_ID_SIZE * way.nodes.len()) as u64;
 
         Ok(())
