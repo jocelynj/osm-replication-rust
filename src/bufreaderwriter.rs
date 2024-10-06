@@ -2,6 +2,8 @@
 // - https://crates.io/crates/bufreaderwriter
 // - https://github.com/alemigo/bufreaderwriter-rs
 
+#![allow(dead_code)]
+
 use std::io::{self, BufReader, BufWriter, IntoInnerError, Read, Seek, SeekFrom, Write};
 
 enum BufIO<RW: Read + Write + Seek> {
