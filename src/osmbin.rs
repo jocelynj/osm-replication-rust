@@ -9,9 +9,10 @@ use std::io::{BufReader, BufWriter};
 use std::path::Path;
 
 use crate::bufreaderwriter;
-use crate::osm::{Node, Relation, Way};
+use crate::osm::{self, Node, Relation, Way};
 use crate::osm::{OsmCopy, OsmReader, OsmUpdate, OsmWriter};
 use crate::osmpbf;
+use crate::osmxml;
 
 const NODE_CRD: &str = "node.crd";
 const WAY_IDX: &str = "way.idx";
@@ -134,8 +135,15 @@ impl OsmBin {
     }
 
     pub fn import(&mut self, filename: &str) -> Result<(), Box<dyn Error>> {
-        let mut reader = osmpbf::OsmPbf::new(filename).unwrap();
-        reader.copy_to(self)
+        if filename.ends_with(".pbf") {
+            let mut reader = osmpbf::OsmPbf::new(filename).unwrap();
+            reader.copy_to(self)
+        } else if filename.ends_with(".osm.gz") {
+            let mut reader = osmxml::OsmXml::new(filename).unwrap();
+            reader.copy_to(self)
+        } else {
+            Err(osm::NotSupportedFileType{filename: filename.to_string()}.into())
+        }
     }
 
     fn bytes5_to_int(d: &[u8; 5]) -> u64 {

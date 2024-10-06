@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt;
 use std::io;
 
 /// Node
@@ -23,6 +24,9 @@ impl Node {
     /// Returns the longitude of the node in degrees.
     pub fn lon(&self) -> f64 {
         self.decimicro_lon as f64 * 1e-7
+    }
+    pub fn coord_to_decimicro(coord: f64) -> i32 {
+        (coord * 1e7).round() as i32
     }
 }
 
@@ -83,4 +87,15 @@ pub trait OsmUpdate: OsmWriter {
 
 pub trait OsmCopy {
     fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>>;
+}
+
+#[derive(Debug)]
+pub struct NotSupportedFileType {
+    pub filename: String,
+}
+impl Error for NotSupportedFileType {}
+impl fmt::Display for NotSupportedFileType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "File {} is not supported", self.filename)
+    }
 }
