@@ -1,5 +1,6 @@
 use clap::Parser;
 
+use osmbin_rust::osmbin;
 use osmbin_rust::osm::OsmReader;
 
 #[derive(Parser, Debug)]
@@ -26,10 +27,10 @@ fn main() {
     let args = Args::parse();
 
     if args.command.init {
-        osmbin_rust::OsmBin::init(&args.dir);
+        osmbin::OsmBin::init(&args.dir);
     }
     if args.command.import.is_some() {
-        let mut osmbin = osmbin_rust::OsmBin::new_writer(&args.dir).unwrap();
+        let mut osmbin = osmbin::OsmBin::new_writer(&args.dir).unwrap();
         osmbin.import(&args.command.import.unwrap()).unwrap();
     }
     if !args.command.read.is_empty() {
@@ -39,7 +40,7 @@ fn main() {
             .parse()
             .expect("ID should be a number");
 
-        let mut osmbin = osmbin_rust::OsmBin::new(&args.dir).unwrap();
+        let mut osmbin = osmbin::OsmBin::new(&args.dir).unwrap();
         match elem.as_str() {
             "node" => println!("{:?}", osmbin.read_node(id)),
             "way" => println!("{:?}", osmbin.read_way(id)),

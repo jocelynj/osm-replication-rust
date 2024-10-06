@@ -9,9 +9,7 @@ use std::io::{BufRead, Read, Seek, SeekFrom, Write};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
 
-mod bufreaderwriter;
-pub mod osm;
-
+use crate::bufreaderwriter;
 use crate::osm::{Member, Node, Relation, Way};
 use crate::osm::{OsmReader, OsmUpdate, OsmWriter};
 
