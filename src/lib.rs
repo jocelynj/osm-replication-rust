@@ -1,12 +1,13 @@
 use osmpbfreader;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::collections::HashMap;
 use std::cmp;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, ErrorKind};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{BufRead, Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, BufWriter};
 use std::path::Path;
 
 mod bufreaderwriter;
@@ -36,7 +37,7 @@ pub struct OsmBin {
     node_crd: bufreaderwriter::BufReaderWriterRand<File>,
     way_idx: bufreaderwriter::BufReaderWriterRand<File>,
     way_data: bufreaderwriter::BufReaderWriterRand<File>,
-    way_free: File,
+    way_free_data: HashMap<u16, Vec<u64>>,
 
     way_idx_size: u64,
     way_data_size: u64,
@@ -71,13 +72,28 @@ impl OsmBin {
         let way_data = bufreaderwriter::BufReaderWriterRand::new_reader(way_data);
 
         let way_free = file_options.open(Path::new(dir).join(WAY_FREE))?;
+        let way_free = BufReader::new(way_free);
+        let mut way_free_data: HashMap<u16, Vec<u64>> = HashMap::new();
+
+        if let OpenMode::Write = mode {
+            for line in way_free.lines() {
+                let line = line.unwrap();
+                let mut s = line.split(";");
+                let pos: u64 = s.next().unwrap().parse().unwrap();
+                let num_nodes: u16 = s.next().unwrap().parse().unwrap();
+                way_free_data
+                    .entry(num_nodes)
+                    .or_insert_with(|| Vec::new())
+                    .push(pos);
+            }
+        }
 
         Ok(OsmBin {
             dir: dir.to_string(),
             node_crd,
             way_idx,
             way_data,
-            way_free,
+            way_free_data,
             way_idx_size,
             way_data_size,
         })
@@ -279,14 +295,19 @@ impl OsmBin {
         if way_idx_addr < self.way_idx_size {
             self.delete_way(&way)?;
         }
-        // TODO: implement way_free
-        let way_data_addr = self.way_data_size;
+        let num_nodes = way.nodes.len() as u16;
+        let way_data_addr = self
+            .way_free_data
+            .get_mut(&num_nodes)
+            .unwrap_or(&mut Vec::new())
+            .pop()
+            .unwrap_or(self.way_data_size);
 
         // Try not to seek if not necessary, as seeking flushes write buffer
         if self.way_data.stream_position().unwrap() != way_data_addr {
             self.way_data.seek(SeekFrom::Start(way_data_addr))?;
         }
-        let num_nodes = Self::int_to_bytes2(way.nodes.len() as u16);
+        let num_nodes = Self::int_to_bytes2(num_nodes);
         self.way_data.write(&num_nodes)?;
         for n in &way.nodes {
             let node = Self::int_to_bytes5(*n);
@@ -301,7 +322,7 @@ impl OsmBin {
         self.way_idx.write(&buffer)?;
 
         self.way_idx_size = cmp::max(self.way_idx_size, self.way_idx.stream_position().unwrap());
-        self.way_data_size += 2 + (NODE_ID_SIZE * way.nodes.len()) as u64;
+        self.way_data_size = cmp::max(self.way_data_size, self.way_data.stream_position().unwrap());
 
         Ok(())
     }
@@ -315,8 +336,28 @@ impl OsmBin {
             return Ok(());
         }
         let way_data_addr = Self::bytes5_to_int(&buffer);
-        // TODO: implement way_free
-        //
+
+        self.way_data
+            .seek(SeekFrom::Start(way_data_addr))
+            .expect("Could not seek");
+        let mut buffer = [0u8; 2];
+        let read_count = self.way_data.read(&mut buffer).expect("Could not read");
+        if read_count == 0 || buffer == [0u8; 2] {
+            panic!("Should have gotten way data for way_id={}", way.id);
+        }
+        let num_nodes = Self::bytes2_to_int(&buffer);
+
+        self.way_free_data
+            .entry(num_nodes)
+            .or_insert_with(|| Vec::new())
+            .push(way_data_addr);
+
+        self.way_data
+            .seek(SeekFrom::Start(way_data_addr))
+            .expect("Could not seek");
+        let empty = vec![0; 2];
+        self.way_data.write(&empty)?;
+
         let buffer = vec![0; WAY_PTR_SIZE];
         self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
         self.way_idx.write(&buffer)?;
@@ -429,6 +470,19 @@ impl OsmBin {
     fn join_nums(nums: &[u8]) -> String {
         let str_nums: Vec<String> = nums.iter().map(|n| n.to_string()).collect();
         str_nums.join("")
+    }
+}
+
+impl Drop for OsmBin {
+    fn drop(&mut self) {
+        let way_free = File::create(Path::new(&self.dir).join(WAY_FREE)).unwrap();
+        let mut way_free = BufWriter::new(way_free);
+
+        for (num_nodes, v) in &self.way_free_data {
+            for pos in v {
+                write!(way_free, "{};{}\n", pos, num_nodes).unwrap();
+            }
+        }
     }
 }
 
