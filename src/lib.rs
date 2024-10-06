@@ -1,5 +1,4 @@
 use osmpbfreader;
-use serde::{Deserialize, Serialize};
 use serde_json;
 use std::cmp;
 use std::collections::HashMap;
@@ -11,6 +10,10 @@ use std::io::{BufReader, BufWriter};
 use std::path::Path;
 
 mod bufreaderwriter;
+pub mod osm;
+
+use crate::osm::{Member, Node, Relation, Way};
+use crate::osm::{OsmReader, OsmUpdate, OsmWriter};
 
 const NODE_CRD: &str = "node.crd";
 const WAY_IDX: &str = "way.idx";
@@ -199,218 +202,6 @@ impl OsmBin {
         Ok(())
     }
 
-    pub fn read_node(&mut self, id: u64) -> Option<Node> {
-        self.node_crd
-            .seek(SeekFrom::Start(id * 8))
-            .expect("Could not seek");
-        let mut lat_buffer = [0u8; 4];
-        let mut lon_buffer = [0u8; 4];
-        let lat_read_count = self.node_crd.read(&mut lat_buffer).expect("Could not read");
-        let lon_read_count = self.node_crd.read(&mut lon_buffer).expect("Could not read");
-
-        if lat_read_count == 0
-            || lon_read_count == 0
-            || lat_buffer == [0u8; 4]
-            || lon_buffer == [0u8; 4]
-        {
-            return None;
-        }
-        let decimicro_lat = Self::bytes4_to_coord(&lat_buffer);
-        let decimicro_lon = Self::bytes4_to_coord(&lon_buffer);
-
-        Some(Node {
-            id,
-            decimicro_lat,
-            decimicro_lon,
-            tags: None,
-        })
-    }
-
-    pub fn write_node(&mut self, node: &Node) -> Result<(), io::Error> {
-        let lat = Self::coord_to_bytes4(node.decimicro_lat);
-        let lon = Self::coord_to_bytes4(node.decimicro_lon);
-        let node_crd_addr = node.id * 8;
-
-        // Try not to seek if not necessary, as seeking flushes write buffer
-        if self.node_crd.stream_position().unwrap() != node_crd_addr {
-            self.node_crd.seek(SeekFrom::Start(node_crd_addr)).unwrap();
-        }
-        self.node_crd.write(&lat).unwrap();
-        self.node_crd.write(&lon).unwrap();
-
-        Ok(())
-    }
-
-    pub fn delete_node(&mut self, node: Node) -> Result<(), io::Error> {
-        let empty: Vec<u8> = vec![0; 8];
-        self.node_crd.seek(SeekFrom::Start(node.id * 8))?;
-        self.node_crd.write(&empty)?;
-
-        Ok(())
-    }
-
-    pub fn read_way(&mut self, id: u64) -> Option<Way> {
-        self.way_idx
-            .seek(SeekFrom::Start(id * (WAY_PTR_SIZE as u64)))
-            .expect("Could not seek");
-        let mut buffer = [0u8; WAY_PTR_SIZE];
-        let read_count = self.way_idx.read(&mut buffer).expect("Could not read");
-
-        if read_count == 0 || buffer == [0u8; WAY_PTR_SIZE] {
-            return None;
-        }
-        let way_data_addr = Self::bytes5_to_int(&buffer);
-
-        self.way_data
-            .seek(SeekFrom::Start(way_data_addr))
-            .expect("Could not seek");
-        let mut buffer = [0u8; 2];
-        let read_count = self.way_data.read(&mut buffer).expect("Could not read");
-        if read_count == 0 || buffer == [0u8; 2] {
-            return None;
-        }
-        let num_nodes = Self::bytes2_to_int(&buffer);
-
-        let mut buffer = [0u8; NODE_ID_SIZE];
-
-        let mut nodes: Vec<u64> = Vec::new();
-        for _ in 0..num_nodes {
-            let read_count = self.way_data.read(&mut buffer).expect("Could not read");
-            if read_count == 0 || buffer == [0u8; NODE_ID_SIZE] {
-                return None;
-            }
-            nodes.push(Self::bytes5_to_int(&buffer));
-        }
-
-        Some(Way {
-            id,
-            nodes,
-            tags: None,
-        })
-    }
-    pub fn write_way(&mut self, way: &Way) -> Result<(), io::Error> {
-        let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
-
-        // Only need to delete way if it could be inside file
-        if way_idx_addr < self.way_idx_size {
-            self.delete_way(&way)?;
-        }
-        let num_nodes = way.nodes.len() as u16;
-        let way_data_addr = self
-            .way_free_data
-            .get_mut(&num_nodes)
-            .unwrap_or(&mut Vec::new())
-            .pop()
-            .unwrap_or(self.way_data_size);
-
-        // Try not to seek if not necessary, as seeking flushes write buffer
-        if self.way_data.stream_position().unwrap() != way_data_addr {
-            self.way_data.seek(SeekFrom::Start(way_data_addr))?;
-        }
-        let num_nodes = Self::int_to_bytes2(num_nodes);
-        self.way_data.write(&num_nodes)?;
-        for n in &way.nodes {
-            let node = Self::int_to_bytes5(*n);
-            self.way_data.write(&node)?;
-        }
-
-        // Try not to seek if not necessary, as seeking flushes write buffer
-        if self.way_idx.stream_position().unwrap() != way_idx_addr {
-            self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
-        }
-        let buffer = Self::int_to_bytes5(way_data_addr);
-        self.way_idx.write(&buffer)?;
-
-        self.way_idx_size = cmp::max(self.way_idx_size, self.way_idx.stream_position().unwrap());
-        self.way_data_size = cmp::max(self.way_data_size, self.way_data.stream_position().unwrap());
-
-        Ok(())
-    }
-    pub fn delete_way(&mut self, way: &Way) -> Result<(), io::Error> {
-        let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
-        self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
-        let mut buffer = [0u8; WAY_PTR_SIZE];
-        let read_count = self.way_idx.read(&mut buffer)?;
-
-        if read_count == 0 || buffer == [0u8; WAY_PTR_SIZE] {
-            return Ok(());
-        }
-        let way_data_addr = Self::bytes5_to_int(&buffer);
-
-        self.way_data
-            .seek(SeekFrom::Start(way_data_addr))
-            .expect("Could not seek");
-        let mut buffer = [0u8; 2];
-        let read_count = self.way_data.read(&mut buffer).expect("Could not read");
-        if read_count == 0 || buffer == [0u8; 2] {
-            panic!("Should have gotten way data for way_id={}", way.id);
-        }
-        let num_nodes = Self::bytes2_to_int(&buffer);
-
-        self.way_free_data
-            .entry(num_nodes)
-            .or_insert_with(|| Vec::new())
-            .push(way_data_addr);
-
-        self.way_data
-            .seek(SeekFrom::Start(way_data_addr))
-            .expect("Could not seek");
-        let empty = vec![0; 2];
-        self.way_data.write(&empty)?;
-
-        let buffer = vec![0; WAY_PTR_SIZE];
-        self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
-        self.way_idx.write(&buffer)?;
-
-        Ok(())
-    }
-
-    pub fn read_relation(&self, id: u64) -> Option<Relation> {
-        let relid_digits = Self::to_digits(id);
-        let relid_part0 = Self::join_nums(&relid_digits[0..3]);
-        let relid_part1 = Self::join_nums(&relid_digits[3..6]);
-        let relid_part2 = Self::join_nums(&relid_digits[6..9]);
-        let rel_path = Path::new(&self.dir)
-            .join("relation")
-            .join(relid_part0)
-            .join(relid_part1)
-            .join(relid_part2);
-        let rel_data = fs::read_to_string(&rel_path);
-        let rel_data = match rel_data {
-            Ok(d) => d,
-            Err(error) => match error.kind() {
-                ErrorKind::NotFound => return None,
-                _ => panic!("Error with file {rel_path:?}: {error}"),
-            },
-        };
-        let u: Relation = serde_json::from_str(rel_data.as_str()).unwrap();
-
-        Some(u)
-    }
-    pub fn write_relation(&self, relation: &Relation) -> Result<(), io::Error> {
-        let relid_digits = Self::to_digits(relation.id);
-        let relid_part0 = Self::join_nums(&relid_digits[0..3]);
-        let relid_part1 = Self::join_nums(&relid_digits[3..6]);
-        let relid_part2 = Self::join_nums(&relid_digits[6..9]);
-        let rel_path = Path::new(&self.dir)
-            .join("relation")
-            .join(relid_part0)
-            .join(relid_part1)
-            .join(relid_part2);
-        match fs::create_dir_all(rel_path.parent().unwrap()) {
-            Ok(_) => (),
-            Err(error) => match error.kind() {
-                ErrorKind::AlreadyExists => (),
-                _ => panic!("Error with directory: {error}"),
-            },
-        };
-
-        let json_data = serde_json::to_string(relation)?;
-        fs::write(&rel_path, json_data)?;
-
-        Ok(())
-    }
-
     fn bytes5_to_int(d: &[u8; 5]) -> u64 {
         let mut arr: Vec<u8> = Vec::with_capacity(8);
         arr.extend([0; 3]);
@@ -486,64 +277,234 @@ impl Drop for OsmBin {
     }
 }
 
-/// Node
-#[derive(Debug, PartialEq)]
-pub struct Node {
-    /// Node id
-    pub id: u64,
-    /// Latitude in decimicro degrees (10⁻⁷ degrees).
-    pub decimicro_lat: i32,
-    /// Longitude in decimicro degrees (10⁻⁷ degrees).
-    pub decimicro_lon: i32,
-    /// Tags
-    pub tags: Option<HashMap<String, String>>,
-}
-impl Node {
-    /// Returns the latitude of the node in degrees.
-    pub fn lat(&self) -> f64 {
-        self.decimicro_lat as f64 * 1e-7
+impl OsmReader for OsmBin {
+    fn read_node(&mut self, id: u64) -> Option<Node> {
+        self.node_crd
+            .seek(SeekFrom::Start(id * 8))
+            .expect("Could not seek");
+        let mut lat_buffer = [0u8; 4];
+        let mut lon_buffer = [0u8; 4];
+        let lat_read_count = self.node_crd.read(&mut lat_buffer).expect("Could not read");
+        let lon_read_count = self.node_crd.read(&mut lon_buffer).expect("Could not read");
+
+        if lat_read_count == 0
+            || lon_read_count == 0
+            || lat_buffer == [0u8; 4]
+            || lon_buffer == [0u8; 4]
+        {
+            return None;
+        }
+        let decimicro_lat = Self::bytes4_to_coord(&lat_buffer);
+        let decimicro_lon = Self::bytes4_to_coord(&lon_buffer);
+
+        Some(Node {
+            id,
+            decimicro_lat,
+            decimicro_lon,
+            tags: None,
+        })
     }
-    /// Returns the longitude of the node in degrees.
-    pub fn lon(&self) -> f64 {
-        self.decimicro_lon as f64 * 1e-7
+    fn read_way(&mut self, id: u64) -> Option<Way> {
+        self.way_idx
+            .seek(SeekFrom::Start(id * (WAY_PTR_SIZE as u64)))
+            .expect("Could not seek");
+        let mut buffer = [0u8; WAY_PTR_SIZE];
+        let read_count = self.way_idx.read(&mut buffer).expect("Could not read");
+
+        if read_count == 0 || buffer == [0u8; WAY_PTR_SIZE] {
+            return None;
+        }
+        let way_data_addr = Self::bytes5_to_int(&buffer);
+
+        self.way_data
+            .seek(SeekFrom::Start(way_data_addr))
+            .expect("Could not seek");
+        let mut buffer = [0u8; 2];
+        let read_count = self.way_data.read(&mut buffer).expect("Could not read");
+        if read_count == 0 || buffer == [0u8; 2] {
+            return None;
+        }
+        let num_nodes = Self::bytes2_to_int(&buffer);
+
+        let mut buffer = [0u8; NODE_ID_SIZE];
+
+        let mut nodes: Vec<u64> = Vec::new();
+        for _ in 0..num_nodes {
+            let read_count = self.way_data.read(&mut buffer).expect("Could not read");
+            if read_count == 0 || buffer == [0u8; NODE_ID_SIZE] {
+                return None;
+            }
+            nodes.push(Self::bytes5_to_int(&buffer));
+        }
+
+        Some(Way {
+            id,
+            nodes,
+            tags: None,
+        })
+    }
+    fn read_relation(&mut self, id: u64) -> Option<Relation> {
+        let relid_digits = Self::to_digits(id);
+        let relid_part0 = Self::join_nums(&relid_digits[0..3]);
+        let relid_part1 = Self::join_nums(&relid_digits[3..6]);
+        let relid_part2 = Self::join_nums(&relid_digits[6..9]);
+        let rel_path = Path::new(&self.dir)
+            .join("relation")
+            .join(relid_part0)
+            .join(relid_part1)
+            .join(relid_part2);
+        let rel_data = fs::read_to_string(&rel_path);
+        let rel_data = match rel_data {
+            Ok(d) => d,
+            Err(error) => match error.kind() {
+                ErrorKind::NotFound => return None,
+                _ => panic!("Error with file {rel_path:?}: {error}"),
+            },
+        };
+        let u: Relation = serde_json::from_str(rel_data.as_str()).unwrap();
+
+        Some(u)
     }
 }
 
-/// Way
-#[derive(Debug, PartialEq)]
-pub struct Way {
-    /// Way id
-    pub id: u64,
-    /// List of ordered nodes
-    pub nodes: Vec<u64>,
-    /// Tags
-    pub tags: Option<HashMap<String, String>>,
+impl OsmWriter for OsmBin {
+    fn write_node(&mut self, node: &Node) -> Result<(), io::Error> {
+        let lat = Self::coord_to_bytes4(node.decimicro_lat);
+        let lon = Self::coord_to_bytes4(node.decimicro_lon);
+        let node_crd_addr = node.id * 8;
+
+        // Try not to seek if not necessary, as seeking flushes write buffer
+        if self.node_crd.stream_position().unwrap() != node_crd_addr {
+            self.node_crd.seek(SeekFrom::Start(node_crd_addr)).unwrap();
+        }
+        self.node_crd.write(&lat).unwrap();
+        self.node_crd.write(&lon).unwrap();
+
+        Ok(())
+    }
+    fn write_way(&mut self, way: &Way) -> Result<(), io::Error> {
+        let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
+
+        // Only need to delete way if it could be inside file
+        if way_idx_addr < self.way_idx_size {
+            self.delete_way(&way)?;
+        }
+        let num_nodes = way.nodes.len() as u16;
+        let way_data_addr = self
+            .way_free_data
+            .get_mut(&num_nodes)
+            .unwrap_or(&mut Vec::new())
+            .pop()
+            .unwrap_or(self.way_data_size);
+
+        // Try not to seek if not necessary, as seeking flushes write buffer
+        if self.way_data.stream_position().unwrap() != way_data_addr {
+            self.way_data.seek(SeekFrom::Start(way_data_addr))?;
+        }
+        let num_nodes = Self::int_to_bytes2(num_nodes);
+        self.way_data.write(&num_nodes)?;
+        for n in &way.nodes {
+            let node = Self::int_to_bytes5(*n);
+            self.way_data.write(&node)?;
+        }
+
+        // Try not to seek if not necessary, as seeking flushes write buffer
+        if self.way_idx.stream_position().unwrap() != way_idx_addr {
+            self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
+        }
+        let buffer = Self::int_to_bytes5(way_data_addr);
+        self.way_idx.write(&buffer)?;
+
+        self.way_idx_size = cmp::max(self.way_idx_size, self.way_idx.stream_position().unwrap());
+        self.way_data_size = cmp::max(self.way_data_size, self.way_data.stream_position().unwrap());
+
+        Ok(())
+    }
+    fn write_relation(&mut self, relation: &Relation) -> Result<(), io::Error> {
+        let relid_digits = Self::to_digits(relation.id);
+        let relid_part0 = Self::join_nums(&relid_digits[0..3]);
+        let relid_part1 = Self::join_nums(&relid_digits[3..6]);
+        let relid_part2 = Self::join_nums(&relid_digits[6..9]);
+        let rel_path = Path::new(&self.dir)
+            .join("relation")
+            .join(relid_part0)
+            .join(relid_part1)
+            .join(relid_part2);
+        match fs::create_dir_all(rel_path.parent().unwrap()) {
+            Ok(_) => (),
+            Err(error) => match error.kind() {
+                ErrorKind::AlreadyExists => (),
+                _ => panic!("Error with directory: {error}"),
+            },
+        };
+
+        let json_data = serde_json::to_string(relation)?;
+        fs::write(&rel_path, json_data)?;
+
+        Ok(())
+    }
 }
 
-/// Relation member
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
-pub struct Member {
-    /// node/way/relation id
-    #[serde(rename = "ref")]
-    pub ref_: u64,
-    /// Role in relation
-    pub role: String,
-    /// Type: node/way/relation
-    #[serde(rename = "type")]
-    pub type_: String,
-}
+impl OsmUpdate for OsmBin {
+    fn delete_node(&mut self, node: &Node) -> Result<(), io::Error> {
+        let empty: Vec<u8> = vec![0; 8];
+        self.node_crd.seek(SeekFrom::Start(node.id * 8))?;
+        self.node_crd.write(&empty)?;
 
-/// Relation
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
-pub struct Relation {
-    /// Relation id
-    pub id: u64,
-    /// List of ordered members
-    #[serde(rename = "member")]
-    pub members: Vec<Member>,
-    /// Tags
-    #[serde(rename = "tag")]
-    pub tags: Option<HashMap<String, String>>,
+        Ok(())
+    }
+    fn delete_way(&mut self, way: &Way) -> Result<(), io::Error> {
+        let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
+        self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
+        let mut buffer = [0u8; WAY_PTR_SIZE];
+        let read_count = self.way_idx.read(&mut buffer)?;
+
+        if read_count == 0 || buffer == [0u8; WAY_PTR_SIZE] {
+            return Ok(());
+        }
+        let way_data_addr = Self::bytes5_to_int(&buffer);
+
+        self.way_data
+            .seek(SeekFrom::Start(way_data_addr))
+            .expect("Could not seek");
+        let mut buffer = [0u8; 2];
+        let read_count = self.way_data.read(&mut buffer).expect("Could not read");
+        if read_count == 0 || buffer == [0u8; 2] {
+            panic!("Should have gotten way data for way_id={}", way.id);
+        }
+        let num_nodes = Self::bytes2_to_int(&buffer);
+
+        self.way_free_data
+            .entry(num_nodes)
+            .or_insert_with(|| Vec::new())
+            .push(way_data_addr);
+
+        self.way_data
+            .seek(SeekFrom::Start(way_data_addr))
+            .expect("Could not seek");
+        let empty = vec![0; 2];
+        self.way_data.write(&empty)?;
+
+        let buffer = vec![0; WAY_PTR_SIZE];
+        self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
+        self.way_idx.write(&buffer)?;
+
+        Ok(())
+    }
+    fn delete_relation(&mut self, relation: &Relation) -> Result<(), io::Error> {
+        let relid_digits = Self::to_digits(relation.id);
+        let relid_part0 = Self::join_nums(&relid_digits[0..3]);
+        let relid_part1 = Self::join_nums(&relid_digits[3..6]);
+        let relid_part2 = Self::join_nums(&relid_digits[6..9]);
+        let rel_path = Path::new(&self.dir)
+            .join("relation")
+            .join(relid_part0)
+            .join(relid_part1)
+            .join(relid_part2);
+        fs::remove_file(&rel_path)?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
