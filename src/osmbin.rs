@@ -1,4 +1,3 @@
-use osmpbfreader;
 use serde_json;
 use std::cmp;
 use std::collections::HashMap;
@@ -10,8 +9,9 @@ use std::io::{BufReader, BufWriter};
 use std::path::Path;
 
 use crate::bufreaderwriter;
-use crate::osm::{Member, Node, Relation, Way};
-use crate::osm::{OsmReader, OsmUpdate, OsmWriter};
+use crate::osm::{Node, Relation, Way};
+use crate::osm::{OsmCopy, OsmReader, OsmUpdate, OsmWriter};
+use crate::osmpbf;
 
 const NODE_CRD: &str = "node.crd";
 const WAY_IDX: &str = "way.idx";
@@ -134,70 +134,8 @@ impl OsmBin {
     }
 
     pub fn import(&mut self, filename: &str) -> Result<(), Box<dyn Error>> {
-        let r = File::open(&Path::new(filename)).unwrap();
-        let mut pbf = osmpbfreader::OsmPbfReader::new(r);
-
-        for obj in pbf.iter() {
-            let obj = obj?;
-            match obj {
-                osmpbfreader::OsmObj::Node(node) => {
-                    self.write_node(&Node {
-                        id: node.id.0 as u64,
-                        decimicro_lat: node.decimicro_lat,
-                        decimicro_lon: node.decimicro_lon,
-                        tags: None,
-                    })
-                    .unwrap();
-                }
-                osmpbfreader::OsmObj::Way(way) => {
-                    let nodes: Vec<u64> = way.nodes.iter().map(|x| x.0 as u64).collect();
-                    self.write_way(&Way {
-                        id: way.id.0 as u64,
-                        nodes,
-                        tags: None,
-                    })
-                    .unwrap();
-                }
-                osmpbfreader::OsmObj::Relation(relation) => {
-                    let mut members: Vec<Member> = Vec::new();
-                    for r in relation.refs {
-                        let ref_: u64;
-                        let type_: String;
-                        match r.member {
-                            osmpbfreader::objects::OsmId::Node(id) => {
-                                ref_ = id.0 as u64;
-                                type_ = String::from("node");
-                            }
-                            osmpbfreader::objects::OsmId::Way(id) => {
-                                ref_ = id.0 as u64;
-                                type_ = String::from("way");
-                            }
-                            osmpbfreader::objects::OsmId::Relation(id) => {
-                                ref_ = id.0 as u64;
-                                type_ = String::from("relation");
-                            }
-                        }
-                        members.push(Member {
-                            ref_,
-                            type_,
-                            role: r.role.to_string(),
-                        })
-                    }
-                    let mut tags: HashMap<String, String> = HashMap::new();
-                    for (k, v) in relation.tags.into_inner() {
-                        tags.insert(k.to_string(), v.to_string());
-                    }
-                    self.write_relation(&Relation {
-                        id: relation.id.0 as u64,
-                        members,
-                        tags: Some(tags),
-                    })
-                    .unwrap();
-                }
-            }
-        }
-
-        Ok(())
+        let mut reader = osmpbf::OsmPbf::new(filename).unwrap();
+        reader.copy_to(self)
     }
 
     fn bytes5_to_int(d: &[u8; 5]) -> u64 {
@@ -509,6 +447,8 @@ impl OsmUpdate for OsmBin {
 mod tests {
     use super::*;
     use tempfile;
+
+    use crate::osm::Member;
 
     const PBF_SAINT_BARTHELEMY: &str = "tests/resources/saint_barthelemy.osm.pbf";
 

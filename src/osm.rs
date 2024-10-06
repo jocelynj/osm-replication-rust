@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::error::Error;
 use std::io;
 
 /// Node
@@ -78,4 +79,8 @@ pub trait OsmUpdate: OsmWriter {
     fn delete_node(&mut self, node: &Node) -> Result<(), io::Error>;
     fn delete_way(&mut self, way: &Way) -> Result<(), io::Error>;
     fn delete_relation(&mut self, relation: &Relation) -> Result<(), io::Error>;
+}
+
+pub trait OsmCopy {
+    fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>>;
 }
