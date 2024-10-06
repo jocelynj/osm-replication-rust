@@ -512,13 +512,15 @@ mod tests {
     use super::*;
     use tempfile;
 
+    const PBF_SAINT_BARTHELEMY: &str = "tests/resources/saint_barthelemy.osm.pbf";
+
     #[test]
     fn read_node() {
         let tmpdir_path = tempfile::tempdir().unwrap();
         let tmpdir = tmpdir_path.path().to_str().unwrap();
         OsmBin::init(&tmpdir);
         let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
-        osmbin.import("tests/resources/saint_barthelemy.osm.pbf").unwrap();
+        osmbin.import(PBF_SAINT_BARTHELEMY).unwrap();
 
         let node = osmbin.read_node(266053077);
         assert_eq!(
@@ -558,7 +560,7 @@ mod tests {
         let tmpdir = tmpdir_path.path().to_str().unwrap();
         OsmBin::init(&tmpdir);
         let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
-        osmbin.import("tests/resources/saint_barthelemy.osm.pbf").unwrap();
+        osmbin.import(PBF_SAINT_BARTHELEMY).unwrap();
 
         let way = osmbin.read_way(24473155);
         assert_eq!(true, way.is_some());
@@ -590,7 +592,7 @@ mod tests {
         let tmpdir = tmpdir_path.path().to_str().unwrap();
         OsmBin::init(&tmpdir);
         let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
-        osmbin.import("tests/resources/saint_barthelemy.osm.pbf").unwrap();
+        osmbin.import(PBF_SAINT_BARTHELEMY).unwrap();
 
         let rel = osmbin.read_relation(47796);
         assert_eq!(true, rel.is_some());
