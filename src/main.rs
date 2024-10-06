@@ -27,7 +27,7 @@ fn main() {
         osmbin_rust::OsmBin::init(&args.dir);
     }
     if args.command.import.is_some() {
-        let mut osmbin = osmbin_rust::OsmBin::new(&args.dir).unwrap();
+        let mut osmbin = osmbin_rust::OsmBin::new_writer(&args.dir).unwrap();
         osmbin.import(&args.command.import.unwrap()).unwrap();
     }
     if !args.command.read.is_empty() {

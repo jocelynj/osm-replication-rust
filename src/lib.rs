@@ -42,10 +42,24 @@ pub struct OsmBin {
     way_data_size: u64,
 }
 
+enum OpenMode {
+    Read,
+    Write,
+}
+
 impl OsmBin {
     pub fn new(dir: &str) -> Result<OsmBin, io::Error> {
+        Self::new_any(dir, OpenMode::Read)
+    }
+    pub fn new_writer(dir: &str) -> Result<OsmBin, io::Error> {
+        Self::new_any(dir, OpenMode::Write)
+    }
+    fn new_any(dir: &str, mode: OpenMode) -> Result<OsmBin, io::Error> {
         let mut file_options = OpenOptions::new();
-        file_options.read(true).write(true);
+        file_options.read(true);
+        if let OpenMode::Write = mode {
+            file_options.write(true);
+        }
         let node_crd = file_options.open(Path::new(dir).join(NODE_CRD))?;
         let node_crd = bufreaderwriter::BufReaderWriterRand::new_reader(node_crd);
         let way_idx = file_options.open(Path::new(dir).join(WAY_IDX))?;
@@ -488,7 +502,7 @@ mod tests {
         let tmpdir_path = tempfile::tempdir().unwrap();
         let tmpdir = tmpdir_path.path().to_str().unwrap();
         OsmBin::init(&tmpdir);
-        let mut osmbin = OsmBin::new(&tmpdir).unwrap();
+        let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
         osmbin.import("tests/resources/saint_barthelemy.osm.pbf").unwrap();
 
         let node = osmbin.read_node(266053077);
@@ -528,7 +542,7 @@ mod tests {
         let tmpdir_path = tempfile::tempdir().unwrap();
         let tmpdir = tmpdir_path.path().to_str().unwrap();
         OsmBin::init(&tmpdir);
-        let mut osmbin = OsmBin::new(&tmpdir).unwrap();
+        let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
         osmbin.import("tests/resources/saint_barthelemy.osm.pbf").unwrap();
 
         let way = osmbin.read_way(24473155);
@@ -560,7 +574,7 @@ mod tests {
         let tmpdir_path = tempfile::tempdir().unwrap();
         let tmpdir = tmpdir_path.path().to_str().unwrap();
         OsmBin::init(&tmpdir);
-        let mut osmbin = OsmBin::new(&tmpdir).unwrap();
+        let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
         osmbin.import("tests/resources/saint_barthelemy.osm.pbf").unwrap();
 
         let rel = osmbin.read_relation(47796);
