@@ -85,8 +85,11 @@ pub trait OsmUpdate: OsmWriter {
     fn delete_relation(&mut self, relation: &Relation) -> Result<(), io::Error>;
 }
 
-pub trait OsmCopy {
+pub trait OsmCopyTo {
     fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>>;
+}
+pub trait OsmUpdateTo {
+    fn update_to(&mut self, target: &mut impl OsmUpdate) -> Result<(), Box<dyn Error>>;
 }
 
 #[derive(Debug)]

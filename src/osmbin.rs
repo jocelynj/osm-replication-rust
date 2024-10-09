@@ -10,7 +10,7 @@ use std::path::Path;
 
 use crate::bufreaderwriter;
 use crate::osm::{self, Node, Relation, Way};
-use crate::osm::{OsmCopy, OsmReader, OsmUpdate, OsmWriter};
+use crate::osm::{OsmCopyTo, OsmReader, OsmUpdate, OsmUpdateTo, OsmWriter};
 use crate::osmpbf;
 use crate::osmxml;
 
@@ -141,6 +141,9 @@ impl OsmBin {
         } else if filename.ends_with(".osm.gz") {
             let mut reader = osmxml::OsmXml::new(filename).unwrap();
             reader.copy_to(self)
+        } else if filename.ends_with(".osc.gz") {
+            let mut reader = osmxml::OsmXml::new(filename).unwrap();
+            reader.update_to(self)
         } else {
             Err(osm::NotSupportedFileType{filename: filename.to_string()}.into())
         }
@@ -445,9 +448,13 @@ impl OsmUpdate for OsmBin {
             .join(relid_part0)
             .join(relid_part1)
             .join(relid_part2);
-        fs::remove_file(&rel_path)?;
-
-        Ok(())
+        match fs::remove_file(&rel_path) {
+            Ok(o) => Ok(o),
+            Err(error) => match error.kind() {
+                ErrorKind::NotFound => Ok(()),
+                _ => panic!("Couldn’t delete relation {} ({:?}): {error}", relation.id, rel_path)
+            }
+        }
     }
 }
 

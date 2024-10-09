@@ -5,7 +5,7 @@ use std::fs::File;
 use std::path::Path;
 
 use crate::osm::{Member, Node, Relation, Way};
-use crate::osm::{OsmCopy, OsmWriter};
+use crate::osm::{OsmCopyTo, OsmWriter};
 
 pub struct OsmPbf {
     filename: String,
@@ -19,7 +19,7 @@ impl OsmPbf {
     }
 }
 
-impl OsmCopy for OsmPbf {
+impl OsmCopyTo for OsmPbf {
     fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>> {
         let r = File::open(&Path::new(&self.filename)).unwrap();
         let mut pbf = osmpbfreader::OsmPbfReader::new(r);
