@@ -57,7 +57,7 @@ impl OsmCopyTo for OsmXml {
                 Ok(Event::Eof) => break, // end of file
 
                 Ok(Event::Start(e)) => match e.name().as_ref() {
-                    b"osm" => (),
+                    b"osm" => target.write_start()?,
                     b"node" => {
                         let mut id: u64 = 0;
                         let mut decimicro_lat: i32 = 0;
@@ -121,7 +121,7 @@ impl OsmCopyTo for OsmXml {
                     k => println!("Unsupported start element: {}", str::from_utf8(&k)?),
                 },
                 Ok(Event::End(e)) => match e.name().as_ref() {
-                    b"osm" => (),
+                    b"osm" => target.write_end()?,
                     b"node" => {
                         if let CurObj::Node(ref mut node) = curobj {
                             node.tags = Some(tags);
@@ -264,8 +264,8 @@ impl OsmUpdateTo for OsmXml {
                 Ok(Event::Eof) => break, // end of file
 
                 Ok(Event::Start(e)) => match e.name().as_ref() {
-                    b"osm" => (),
-                    b"osmChange" => (),
+                    b"osm" => target.write_start()?,
+                    b"osmChange" => target.write_start()?,
                     b"node" => {
                         let mut id: u64 = 0;
                         let mut decimicro_lat: i32 = 0;
@@ -332,8 +332,8 @@ impl OsmUpdateTo for OsmXml {
                     k => println!("Unsupported start element: {}", str::from_utf8(&k)?),
                 },
                 Ok(Event::End(e)) => match e.name().as_ref() {
-                    b"osm" => (),
-                    b"osmChange" => (),
+                    b"osm" => target.write_end()?,
+                    b"osmChange" => target.write_end()?,
                     b"node" => {
                         if let CurObj::Node(ref mut node) = curobj {
                             node.tags = Some(tags);

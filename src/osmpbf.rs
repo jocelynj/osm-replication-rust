@@ -24,6 +24,8 @@ impl OsmCopyTo for OsmPbf {
         let r = File::open(&Path::new(&self.filename)).unwrap();
         let mut pbf = osmpbfreader::OsmPbfReader::new(r);
 
+        target.write_start().unwrap();
+
         for obj in pbf.iter() {
             let obj = obj?;
             match obj {
@@ -86,6 +88,8 @@ impl OsmCopyTo for OsmPbf {
                 }
             }
         }
+
+        target.write_end().unwrap();
 
         Ok(())
     }

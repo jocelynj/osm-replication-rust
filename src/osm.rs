@@ -81,6 +81,13 @@ pub trait OsmWriter {
     fn write_way(&mut self, way: &Way) -> Result<(), io::Error>;
     fn write_relation(&mut self, relation: &Relation) -> Result<(), io::Error>;
 
+    fn write_start(&mut self) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+    fn write_end(&mut self) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
     fn import(&mut self, filename: &str) -> Result<(), Box<dyn Error>> where Self: Sized {
         if filename.ends_with(".pbf") {
             let mut reader = osmpbf::OsmPbf::new(filename).unwrap();
