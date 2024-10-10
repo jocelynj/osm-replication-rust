@@ -1,7 +1,7 @@
 use clap::Parser;
 
 use osmbin_rust::osmbin;
-use osmbin_rust::osm::OsmReader;
+use osmbin_rust::osm::{OsmReader, OsmWriter, OsmUpdate};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -19,6 +19,8 @@ struct Command {
     pub init: bool,
     #[arg(long, help = "Import file to database")]
     pub import: Option<String>,
+    #[arg(long, help = "Apply diff file to database")]
+    pub update: Option<String>,
     #[arg(long, num_args=2, value_names=["ELEM", "ID"], help="Read node/way/relation id from database")]
     pub read: Vec<String>,
 }
@@ -32,6 +34,10 @@ fn main() {
     if args.command.import.is_some() {
         let mut osmbin = osmbin::OsmBin::new_writer(&args.dir).unwrap();
         osmbin.import(&args.command.import.unwrap()).unwrap();
+    }
+    if args.command.update.is_some() {
+        let mut osmbin = osmbin::OsmBin::new_writer(&args.dir).unwrap();
+        osmbin.update(&args.command.update.unwrap()).unwrap();
     }
     if !args.command.read.is_empty() {
         let elem = args.command.read[0].clone();
