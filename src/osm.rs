@@ -92,7 +92,7 @@ pub trait OsmWriter {
         if filename.ends_with(".pbf") {
             let mut reader = osmpbf::OsmPbf::new(filename).unwrap();
             reader.copy_to(self)
-        } else if filename.ends_with(".osm.gz") {
+        } else if filename.ends_with(".osm.gz") || filename.ends_with(".osm") {
             let mut reader = osmxml::OsmXml::new(filename).unwrap();
             reader.copy_to(self)
         } else {

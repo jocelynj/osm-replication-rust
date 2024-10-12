@@ -4,7 +4,7 @@ use quick_xml::reader::Reader;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufRead, BufReader};
 use std::str;
 
 use crate::osm::{Member, Node, Relation, Way};
@@ -33,15 +33,23 @@ impl OsmXml {
             filename: filename.to_string(),
         })
     }
+    pub fn xmlreader(&self, filename: &str) -> Result<Reader<Box<dyn BufRead>>, Box<dyn Error>> {
+        let freader = Box::new(File::open(&filename)?);
+        let reader: Box<dyn BufRead>;
+        if self.filename.ends_with(".gz") {
+            let breader = BufReader::new(freader);
+            let gzreader = GzDecoder::new(breader);
+            reader = Box::new(BufReader::new(gzreader));
+        } else {
+            reader = Box::new(BufReader::new(freader));
+        }
+        Ok(Reader::from_reader(reader))
+    }
 }
 
 impl OsmCopyTo for OsmXml {
     fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>> {
-        let reader = File::open(&self.filename)?;
-        let reader = BufReader::new(&reader);
-        let reader = GzDecoder::new(reader);
-        let reader = BufReader::new(reader);
-        let mut reader = Reader::from_reader(reader);
+        let mut reader = self.xmlreader(&self.filename).unwrap();
 
         let mut buf = Vec::new();
 
@@ -243,11 +251,7 @@ impl OsmCopyTo for OsmXml {
 
 impl OsmUpdateTo for OsmXml {
     fn update_to(&mut self, target: &mut impl OsmUpdate) -> Result<(), Box<dyn Error>> {
-        let reader = File::open(&self.filename)?;
-        let reader = BufReader::new(&reader);
-        let reader = GzDecoder::new(reader);
-        let reader = BufReader::new(reader);
-        let mut reader = Reader::from_reader(reader);
+        let mut reader = self.xmlreader(&self.filename).unwrap();
 
         let mut buf = Vec::new();
 
