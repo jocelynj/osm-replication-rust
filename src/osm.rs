@@ -96,7 +96,10 @@ pub trait OsmWriter {
         Ok(())
     }
 
-    fn import(&mut self, filename: &str) -> Result<(), Box<dyn Error>> where Self: Sized {
+    fn import(&mut self, filename: &str) -> Result<(), Box<dyn Error>>
+    where
+        Self: Sized,
+    {
         if filename.ends_with(".pbf") {
             let mut reader = osmpbf::OsmPbf::new(filename).unwrap();
             reader.copy_to(self)
@@ -104,7 +107,10 @@ pub trait OsmWriter {
             let mut reader = osmxml::OsmXml::new(filename).unwrap();
             reader.copy_to(self)
         } else {
-            Err(NotSupportedFileType{filename: filename.to_string()}.into())
+            Err(NotSupportedFileType {
+                filename: filename.to_string(),
+            }
+            .into())
         }
     }
 }
@@ -114,7 +120,10 @@ pub trait OsmUpdate: OsmWriter {
     fn update_way(&mut self, way: &Way, action: &Action) -> Result<(), io::Error>;
     fn update_relation(&mut self, relation: &Relation, action: &Action) -> Result<(), io::Error>;
 
-    fn update(&mut self, filename: &str) -> Result<(), Box<dyn Error>> where Self: Sized {
+    fn update(&mut self, filename: &str) -> Result<(), Box<dyn Error>>
+    where
+        Self: Sized,
+    {
         if filename.ends_with(".pbf") {
             let mut reader = osmpbf::OsmPbf::new(filename).unwrap();
             reader.copy_to(self)
@@ -125,7 +134,10 @@ pub trait OsmUpdate: OsmWriter {
             let mut reader = osmxml::OsmXml::new(filename).unwrap();
             reader.update_to(self)
         } else {
-            Err(NotSupportedFileType{filename: filename.to_string()}.into())
+            Err(NotSupportedFileType {
+                filename: filename.to_string(),
+            }
+            .into())
         }
     }
 }
