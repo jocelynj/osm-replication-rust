@@ -8,7 +8,7 @@ use std::io::{BufReader, BufWriter};
 use std::path::Path;
 
 use crate::bufreaderwriter;
-use crate::osm::{Node, Relation, Way};
+use crate::osm::{Action, Node, Relation, Way};
 use crate::osm::{OsmReader, OsmUpdate, OsmWriter};
 
 const NODE_CRD: &str = "node.crd";
@@ -316,7 +316,7 @@ impl OsmWriter for OsmBin {
 
         // Only need to delete way if it could be inside file
         if way_idx_addr < self.way_idx_size {
-            self.delete_way(&way)?;
+            self.update_way(&way, &Action::Delete())?;
         }
         let num_nodes = way.nodes.len() as u16;
         let way_data_addr = self
@@ -375,67 +375,81 @@ impl OsmWriter for OsmBin {
 }
 
 impl OsmUpdate for OsmBin {
-    fn delete_node(&mut self, node: &Node) -> Result<(), io::Error> {
-        let empty: Vec<u8> = vec![0; 8];
-        self.node_crd.seek(SeekFrom::Start(node.id * 8))?;
-        self.node_crd.write(&empty)?;
+    fn update_node(&mut self, node: &Node, action: &Action) -> Result<(), io::Error> {
+        if *action == Action::Delete() {
+            let empty: Vec<u8> = vec![0; 8];
+            self.node_crd.seek(SeekFrom::Start(node.id * 8))?;
+            self.node_crd.write(&empty)?;
+        } else {
+            self.write_node(node)?;
+        }
 
         Ok(())
     }
-    fn delete_way(&mut self, way: &Way) -> Result<(), io::Error> {
-        let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
-        self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
-        let mut buffer = [0u8; WAY_PTR_SIZE];
-        let read_count = self.way_idx.read(&mut buffer)?;
+    fn update_way(&mut self, way: &Way, action: &Action) -> Result<(), io::Error> {
+        if *action == Action::Delete() {
+            let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
+            self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
+            let mut buffer = [0u8; WAY_PTR_SIZE];
+            let read_count = self.way_idx.read(&mut buffer)?;
 
-        if read_count == 0 || buffer == [0u8; WAY_PTR_SIZE] {
-            return Ok(());
-        }
-        let way_data_addr = Self::bytes5_to_int(&buffer);
-
-        self.way_data
-            .seek(SeekFrom::Start(way_data_addr))
-            .expect("Could not seek");
-        let mut buffer = [0u8; 2];
-        let read_count = self.way_data.read(&mut buffer).expect("Could not read");
-        if read_count == 0 || buffer == [0u8; 2] {
-            panic!("Should have gotten way data for way_id={}", way.id);
-        }
-        let num_nodes = Self::bytes2_to_int(&buffer);
-
-        self.way_free_data
-            .entry(num_nodes)
-            .or_insert_with(|| Vec::new())
-            .push(way_data_addr);
-
-        self.way_data
-            .seek(SeekFrom::Start(way_data_addr))
-            .expect("Could not seek");
-        let empty = vec![0; 2];
-        self.way_data.write(&empty)?;
-
-        let buffer = vec![0; WAY_PTR_SIZE];
-        self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
-        self.way_idx.write(&buffer)?;
-
-        Ok(())
-    }
-    fn delete_relation(&mut self, relation: &Relation) -> Result<(), io::Error> {
-        let relid_digits = Self::to_digits(relation.id);
-        let relid_part0 = Self::join_nums(&relid_digits[0..3]);
-        let relid_part1 = Self::join_nums(&relid_digits[3..6]);
-        let relid_part2 = Self::join_nums(&relid_digits[6..9]);
-        let rel_path = Path::new(&self.dir)
-            .join("relation")
-            .join(relid_part0)
-            .join(relid_part1)
-            .join(relid_part2);
-        match fs::remove_file(&rel_path) {
-            Ok(o) => Ok(o),
-            Err(error) => match error.kind() {
-                ErrorKind::NotFound => Ok(()),
-                _ => panic!("Couldn’t delete relation {} ({:?}): {error}", relation.id, rel_path)
+            if read_count == 0 || buffer == [0u8; WAY_PTR_SIZE] {
+                return Ok(());
             }
+            let way_data_addr = Self::bytes5_to_int(&buffer);
+
+            self.way_data
+                .seek(SeekFrom::Start(way_data_addr))
+                .expect("Could not seek");
+            let mut buffer = [0u8; 2];
+            let read_count = self.way_data.read(&mut buffer).expect("Could not read");
+            if read_count == 0 || buffer == [0u8; 2] {
+                panic!("Should have gotten way data for way_id={}", way.id);
+            }
+            let num_nodes = Self::bytes2_to_int(&buffer);
+
+            self.way_free_data
+                .entry(num_nodes)
+                .or_insert_with(|| Vec::new())
+                .push(way_data_addr);
+
+            self.way_data
+                .seek(SeekFrom::Start(way_data_addr))
+                .expect("Could not seek");
+            let empty = vec![0; 2];
+            self.way_data.write(&empty)?;
+
+            let buffer = vec![0; WAY_PTR_SIZE];
+            self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
+            self.way_idx.write(&buffer)?;
+        } else {
+            self.write_way(way)?;
+        }
+        Ok(())
+    }
+    fn update_relation(&mut self, relation: &Relation, action: &Action) -> Result<(), io::Error> {
+        if *action == Action::Delete() {
+            let relid_digits = Self::to_digits(relation.id);
+            let relid_part0 = Self::join_nums(&relid_digits[0..3]);
+            let relid_part1 = Self::join_nums(&relid_digits[3..6]);
+            let relid_part2 = Self::join_nums(&relid_digits[6..9]);
+            let rel_path = Path::new(&self.dir)
+                .join("relation")
+                .join(relid_part0)
+                .join(relid_part1)
+                .join(relid_part2);
+            match fs::remove_file(&rel_path) {
+                Ok(o) => Ok(o),
+                Err(error) => match error.kind() {
+                    ErrorKind::NotFound => Ok(()),
+                    _ => panic!(
+                        "Couldn’t delete relation {} ({:?}): {error}",
+                        relation.id, rel_path
+                    ),
+                },
+            }
+        } else {
+            self.write_relation(relation)
         }
     }
 }

@@ -70,6 +70,14 @@ pub struct Relation {
     pub tags: Option<HashMap<String, String>>,
 }
 
+#[derive(Clone, PartialEq)]
+pub enum Action {
+    Create(),
+    Modify(),
+    Delete(),
+    None,
+}
+
 pub trait OsmReader {
     fn read_node(&mut self, id: u64) -> Option<Node>;
     fn read_way(&mut self, id: u64) -> Option<Way>;
@@ -102,9 +110,9 @@ pub trait OsmWriter {
 }
 
 pub trait OsmUpdate: OsmWriter {
-    fn delete_node(&mut self, node: &Node) -> Result<(), io::Error>;
-    fn delete_way(&mut self, way: &Way) -> Result<(), io::Error>;
-    fn delete_relation(&mut self, relation: &Relation) -> Result<(), io::Error>;
+    fn update_node(&mut self, node: &Node, action: &Action) -> Result<(), io::Error>;
+    fn update_way(&mut self, way: &Way, action: &Action) -> Result<(), io::Error>;
+    fn update_relation(&mut self, relation: &Relation, action: &Action) -> Result<(), io::Error>;
 
     fn update(&mut self, filename: &str) -> Result<(), Box<dyn Error>> where Self: Sized {
         if filename.ends_with(".pbf") {

@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::str;
 
-use crate::osm::{Member, Node, Relation, Way};
+use crate::osm::{Action, Member, Node, Relation, Way};
 use crate::osm::{OsmCopyTo, OsmUpdate, OsmUpdateTo, OsmWriter};
 
 enum CurObj {
@@ -15,12 +15,6 @@ enum CurObj {
     Node(Node),
     Way(Way),
     Relation(Relation),
-}
-
-enum Action {
-    Create(),
-    Modify(),
-    Delete(),
 }
 
 pub struct OsmXml {
@@ -342,11 +336,7 @@ impl OsmUpdateTo for OsmXml {
                         if let CurObj::Node(ref mut node) = curobj {
                             node.tags = Some(tags);
                             tags = HashMap::new();
-                            if let Action::Delete() = curaction {
-                                target.delete_node(&node)?;
-                            } else {
-                                target.write_node(&node)?;
-                            }
+                            target.update_node(&node, &curaction)?;
                         } else {
                             panic!("Expected an initialized node");
                         }
@@ -357,11 +347,7 @@ impl OsmUpdateTo for OsmXml {
                             way.tags = Some(tags);
                             nodes = Vec::new();
                             tags = HashMap::new();
-                            if let Action::Delete() = curaction {
-                                target.delete_way(&way)?;
-                            } else {
-                                target.write_way(&way)?;
-                            }
+                            target.update_way(&way, &curaction)?;
                         } else {
                             panic!("Expected an initialized way");
                         }
@@ -372,11 +358,7 @@ impl OsmUpdateTo for OsmXml {
                             relation.tags = Some(tags);
                             members = Vec::new();
                             tags = HashMap::new();
-                            if let Action::Delete() = curaction {
-                                target.delete_relation(&relation)?;
-                            } else {
-                                target.write_relation(&relation)?;
-                            }
+                            target.update_relation(&relation, &curaction)?;
                         } else {
                             panic!("Expected an initialized relation");
                         }
@@ -416,10 +398,7 @@ impl OsmUpdateTo for OsmXml {
                             decimicro_lon,
                             tags: None,
                         };
-                        if let Action::Delete() = curaction {
-                            target.delete_node(&node)?;
-                        } else {
-                            target.write_node(&node)?;
+                        target.update_node(&node, &curaction)?;
                         }
                     }
                     b"nd" => {
