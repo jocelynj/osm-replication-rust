@@ -118,10 +118,10 @@ pub trait OsmUpdate: OsmWriter {
         if filename.ends_with(".pbf") {
             let mut reader = osmpbf::OsmPbf::new(filename).unwrap();
             reader.copy_to(self)
-        } else if filename.ends_with(".osm.gz") {
+        } else if filename.ends_with(".osm.gz") || filename.ends_with(".osm") {
             let mut reader = osmxml::OsmXml::new(filename).unwrap();
             reader.copy_to(self)
-        } else if filename.ends_with(".osc.gz") {
+        } else if filename.ends_with(".osc.gz") || filename.ends_with(".osc") {
             let mut reader = osmxml::OsmXml::new(filename).unwrap();
             reader.update_to(self)
         } else {
