@@ -1,10 +1,14 @@
 use flate2::bufread::GzDecoder;
-use quick_xml::events::Event;
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use quick_xml;
+use quick_xml::events::{BytesEnd, BytesStart, Event};
 use quick_xml::reader::Reader;
+use quick_xml::writer::Writer;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::str;
 
 use crate::osm::{Action, Member, Node, Relation, Way};
@@ -19,15 +23,20 @@ enum CurObj {
 
 pub struct OsmXml {
     filename: String,
+    xmlwriter: Option<Writer<Box<dyn Write>>>,
+    actionwriter: Action,
 }
 
 impl OsmXml {
     pub fn new(filename: &str) -> Result<OsmXml, ()> {
         Ok(OsmXml {
             filename: filename.to_string(),
+            xmlwriter: None,
+            actionwriter: Action::None,
         })
     }
-    pub fn xmlreader(&self, filename: &str) -> Result<Reader<Box<dyn BufRead>>, Box<dyn Error>> {
+
+    fn xmlreader(&self, filename: &str) -> Result<Reader<Box<dyn BufRead>>, Box<dyn Error>> {
         let freader = Box::new(File::open(&filename)?);
         let reader: Box<dyn BufRead>;
         if self.filename.ends_with(".gz") {
@@ -38,6 +47,47 @@ impl OsmXml {
             reader = Box::new(BufReader::new(freader));
         }
         Ok(Reader::from_reader(reader))
+    }
+    fn xmlwriter(&self, filename: &str) -> Result<Writer<Box<dyn Write>>, Box<dyn Error>> {
+        let fwriter = Box::new(File::create(&filename)?);
+        let writer: Box<dyn Write>;
+        if self.filename.ends_with(".gz") {
+            let gzwriter = GzEncoder::new(fwriter, Compression::default());
+            writer = Box::new(BufWriter::new(gzwriter));
+        } else {
+            writer = Box::new(BufWriter::new(fwriter));
+        }
+        Ok(Writer::new_with_indent(writer, b' ', 2))
+    }
+    fn write_action_start(&mut self, action: &Action) {
+        if *action != Action::None && *action != self.actionwriter {
+            if self.actionwriter != Action::None {
+                let action_str = match self.actionwriter {
+                    Action::Create() => "create",
+                    Action::Modify() => "modify",
+                    Action::Delete() => "delete",
+                    Action::None => "",
+                };
+                self.xmlwriter
+                    .as_mut()
+                    .unwrap()
+                    .write_event(Event::End(BytesEnd::new(action_str)))
+                    .unwrap();
+            }
+
+            let action_str = match action {
+                Action::Create() => "create",
+                Action::Modify() => "modify",
+                Action::Delete() => "delete",
+                Action::None => "",
+            };
+            self.xmlwriter
+                .as_mut()
+                .unwrap()
+                .write_event(Event::Start(BytesStart::new(action_str)))
+                .unwrap();
+            self.actionwriter = action.clone();
+        }
     }
 }
 
@@ -253,7 +303,7 @@ impl OsmUpdateTo for OsmXml {
         let mut nodes: Vec<u64> = Vec::new();
         let mut members: Vec<Member> = Vec::new();
 
-        let mut curaction = Action::Create();
+        let mut curaction = Action::None;
         let mut curobj = CurObj::Empty();
 
         loop {
@@ -452,6 +502,161 @@ impl OsmUpdateTo for OsmXml {
             }
         }
 
+        Ok(())
+    }
+}
+
+impl OsmWriter for OsmXml {
+    fn write_node(&mut self, node: &Node) -> Result<(), io::Error> {
+        let elem = self
+            .xmlwriter
+            .as_mut()
+            .unwrap()
+            .create_element("node")
+            .with_attribute(("id", node.id.to_string().as_str()))
+            .with_attribute(("lat", node.lat().to_string().as_str()))
+            .with_attribute(("lon", node.lon().to_string().as_str()));
+
+        if node.tags.is_none() {
+            elem.write_empty().unwrap();
+        } else {
+            elem.write_inner_content(|writer| {
+                for (k, v) in node.tags.as_ref().unwrap() {
+                    writer
+                        .create_element("tag")
+                        .with_attribute(("k", k.as_str()))
+                        .with_attribute(("v", v.as_str()))
+                        .write_empty()
+                        .unwrap();
+                }
+                Ok::<(), quick_xml::Error>(())
+            })
+            .unwrap();
+        }
+
+        Ok(())
+    }
+    fn write_way(&mut self, way: &Way) -> Result<(), io::Error> {
+        let elem = self
+            .xmlwriter
+            .as_mut()
+            .unwrap()
+            .create_element("way")
+            .with_attribute(("id", way.id.to_string().as_str()));
+
+        elem.write_inner_content(|writer| {
+            for n in &way.nodes {
+                let n: u64 = *n;
+                writer
+                    .create_element("nd")
+                    .with_attribute(("ref", n.to_string().as_str()))
+                    .write_empty()
+                    .unwrap();
+            }
+            if way.tags.is_some() {
+                for (k, v) in way.tags.as_ref().unwrap() {
+                    writer
+                        .create_element("tag")
+                        .with_attribute(("k", k.as_str()))
+                        .with_attribute(("v", v.as_str()))
+                        .write_empty()
+                        .unwrap();
+                }
+            }
+            Ok::<(), quick_xml::Error>(())
+        })
+        .unwrap();
+
+        Ok(())
+    }
+    fn write_relation(&mut self, relation: &Relation) -> Result<(), io::Error> {
+        let elem = self
+            .xmlwriter
+            .as_mut()
+            .unwrap()
+            .create_element("relation")
+            .with_attribute(("id", relation.id.to_string().as_str()));
+
+        elem.write_inner_content(|writer| {
+            for m in &relation.members {
+                writer
+                    .create_element("member")
+                    .with_attribute(("type", m.type_.as_str()))
+                    .with_attribute(("ref", m.ref_.to_string().as_str()))
+                    .with_attribute(("role", m.role.as_str()))
+                    .write_empty()
+                    .unwrap();
+            }
+            if relation.tags.is_some() {
+                for (k, v) in relation.tags.as_ref().unwrap() {
+                    writer
+                        .create_element("tag")
+                        .with_attribute(("k", k.as_str()))
+                        .with_attribute(("v", v.as_str()))
+                        .write_empty()
+                        .unwrap();
+                }
+            }
+            Ok::<(), quick_xml::Error>(())
+        })
+        .unwrap();
+
+        Ok(())
+    }
+
+    fn write_start(&mut self) -> Result<(), Box<dyn Error>> {
+        self.xmlwriter = Some(self.xmlwriter(&self.filename).unwrap());
+
+        let mut elem = BytesStart::new("osm");
+        elem.push_attribute(("version", "0.6"));
+
+        self.xmlwriter
+            .as_mut()
+            .unwrap()
+            .write_event(Event::Start(elem))?;
+
+        Ok(())
+    }
+    fn write_end(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.actionwriter != Action::None {
+            let action_str = match self.actionwriter {
+                Action::Create() => "create",
+                Action::Modify() => "modify",
+                Action::Delete() => "delete",
+                Action::None => "",
+            };
+            self.xmlwriter
+                .as_mut()
+                .unwrap()
+                .write_event(Event::End(BytesEnd::new(action_str)))
+                .unwrap();
+        }
+
+        self.xmlwriter
+            .as_mut()
+            .unwrap()
+            .write_event(Event::End(BytesEnd::new("osm")))?;
+
+        self.xmlwriter = None;
+
+        Ok(())
+    }
+}
+
+impl OsmUpdate for OsmXml {
+    fn update_node(&mut self, node: &Node, action: &Action) -> Result<(), io::Error> {
+        self.write_action_start(action);
+        self.write_node(node)?;
+        Ok(())
+    }
+    fn update_way(&mut self, way: &Way, action: &Action) -> Result<(), io::Error> {
+        self.write_action_start(action);
+        self.write_way(way)?;
+        Ok(())
+    }
+    fn update_relation(&mut self, relation: &Relation, action: &Action) -> Result<(), io::Error> {
+        self.write_action_start(action);
+        self.write_relation(relation)?;
         Ok(())
     }
 }
