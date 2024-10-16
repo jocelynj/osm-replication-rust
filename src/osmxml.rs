@@ -170,7 +170,7 @@ impl OsmCopyTo for OsmXml {
                             tags: None,
                         });
                     }
-                    k => println!("Unsupported start element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported start element: {}", str::from_utf8(&k)?),
                 },
                 Ok(Event::End(e)) => match e.name().as_ref() {
                     b"osm" => target.write_end()?,
@@ -205,7 +205,7 @@ impl OsmCopyTo for OsmXml {
                             panic!("Expected an initialized relation");
                         }
                     }
-                    k => println!("Unsupported end element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported end element: {}", str::from_utf8(&k)?),
                 },
                 Ok(Event::Empty(e)) => match e.name().as_ref() {
                     b"bounds" => (),
@@ -281,11 +281,11 @@ impl OsmCopyTo for OsmXml {
                         }
                         tags.insert(key, val);
                     }
-                    k => println!("Unsupported empty element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported empty element: {}", str::from_utf8(&k)?),
                 },
                 Ok(Event::Text(_)) => (),
                 Ok(Event::Decl(_)) => (),
-                e => println!("Unsupported entry: {:?}", e?),
+                e => panic!("Unsupported entry: {:?}", e?),
             }
         }
 
@@ -377,7 +377,7 @@ impl OsmUpdateTo for OsmXml {
                     b"create" => curaction = Action::Create(),
                     b"modify" => curaction = Action::Modify(),
                     b"delete" => curaction = Action::Delete(),
-                    k => println!("Unsupported start element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported start element: {}", str::from_utf8(&k)?),
                 },
                 Ok(Event::End(e)) => match e.name().as_ref() {
                     b"osm" => target.write_end()?,
@@ -416,7 +416,7 @@ impl OsmUpdateTo for OsmXml {
                     b"create" => (),
                     b"modify" => (),
                     b"delete" => (),
-                    k => println!("Unsupported end element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported end element: {}", str::from_utf8(&k)?),
                 },
                 Ok(Event::Empty(e)) => match e.name().as_ref() {
                     b"bounds" => (),
@@ -494,11 +494,11 @@ impl OsmUpdateTo for OsmXml {
                         }
                         tags.insert(key, val);
                     }
-                    k => println!("Unsupported empty element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported empty element: {}", str::from_utf8(&k)?),
                 },
                 Ok(Event::Text(_)) => (),
                 Ok(Event::Decl(_)) => (),
-                e => println!("Unsupported entry: {:?}", e?),
+                e => panic!("Unsupported entry: {:?}", e?),
             }
         }
 
