@@ -14,6 +14,8 @@ use std::str;
 use crate::osm::{Action, Member, Node, Relation, Way};
 use crate::osm::{OsmCopyTo, OsmUpdate, OsmUpdateTo, OsmWriter};
 
+pub mod bbox;
+
 enum CurObj {
     Empty(),
     Node(Node),
@@ -138,6 +140,7 @@ impl OsmCopyTo for OsmXml {
                             decimicro_lat,
                             decimicro_lon,
                             tags: None,
+                            ..Default::default()
                         });
                     }
                     b"way" => {
@@ -153,6 +156,7 @@ impl OsmCopyTo for OsmXml {
                             id,
                             nodes: Vec::new(),
                             tags: None,
+                            ..Default::default()
                         });
                     }
                     b"relation" => {
@@ -168,6 +172,7 @@ impl OsmCopyTo for OsmXml {
                             id,
                             members: Vec::new(),
                             tags: None,
+                            ..Default::default()
                         });
                     }
                     k => panic!("Unsupported start element: {}", str::from_utf8(&k)?),
@@ -236,6 +241,7 @@ impl OsmCopyTo for OsmXml {
                             decimicro_lat,
                             decimicro_lon,
                             tags: None,
+                            ..Default::default()
                         })?;
                     }
                     b"nd" => {
@@ -342,6 +348,7 @@ impl OsmUpdateTo for OsmXml {
                             decimicro_lat,
                             decimicro_lon,
                             tags: None,
+                            ..Default::default()
                         });
                     }
                     b"way" => {
@@ -357,6 +364,7 @@ impl OsmUpdateTo for OsmXml {
                             id,
                             nodes: Vec::new(),
                             tags: None,
+                            ..Default::default()
                         });
                     }
                     b"relation" => {
@@ -372,6 +380,7 @@ impl OsmUpdateTo for OsmXml {
                             id,
                             members: Vec::new(),
                             tags: None,
+                            ..Default::default()
                         });
                     }
                     b"create" => curaction = Action::Create(),
@@ -447,6 +456,7 @@ impl OsmUpdateTo for OsmXml {
                             decimicro_lat,
                             decimicro_lon,
                             tags: None,
+                            ..Default::default()
                         };
                         target.update_node(&mut node, &curaction)?;
                     }
@@ -516,15 +526,27 @@ impl OsmWriter for OsmXml {
             .with_attribute(("lat", node.lat().to_string().as_str()))
             .with_attribute(("lon", node.lon().to_string().as_str()));
 
-        if node.tags.is_none() {
+        if node.tags.is_none() && node.bbox.is_none() {
             elem.write_empty().unwrap();
         } else {
             elem.write_inner_content(|writer| {
-                for (k, v) in node.tags.as_ref().unwrap() {
+                if node.tags.is_some() {
+                    for (k, v) in node.tags.as_ref().unwrap() {
+                        writer
+                            .create_element("tag")
+                            .with_attribute(("k", k.as_str()))
+                            .with_attribute(("v", v.as_str()))
+                            .write_empty()
+                            .unwrap();
+                    }
+                }
+                if let Some(bb) = &node.bbox {
                     writer
-                        .create_element("tag")
-                        .with_attribute(("k", k.as_str()))
-                        .with_attribute(("v", v.as_str()))
+                        .create_element("bbox")
+                        .with_attribute(("minlat", bb.minlat().to_string().as_str()))
+                        .with_attribute(("maxlat", bb.maxlat().to_string().as_str()))
+                        .with_attribute(("minlon", bb.minlon().to_string().as_str()))
+                        .with_attribute(("maxlon", bb.maxlon().to_string().as_str()))
                         .write_empty()
                         .unwrap();
                 }
@@ -562,6 +584,16 @@ impl OsmWriter for OsmXml {
                         .unwrap();
                 }
             }
+            if let Some(bb) = &way.bbox {
+                writer
+                    .create_element("bbox")
+                    .with_attribute(("minlat", bb.minlat().to_string().as_str()))
+                    .with_attribute(("maxlat", bb.maxlat().to_string().as_str()))
+                    .with_attribute(("minlon", bb.minlon().to_string().as_str()))
+                    .with_attribute(("maxlon", bb.maxlon().to_string().as_str()))
+                    .write_empty()
+                    .unwrap();
+            }
             Ok::<(), quick_xml::Error>(())
         })
         .unwrap();
@@ -595,6 +627,16 @@ impl OsmWriter for OsmXml {
                         .write_empty()
                         .unwrap();
                 }
+            }
+            if let Some(bb) = &relation.bbox {
+                writer
+                    .create_element("bbox")
+                    .with_attribute(("minlat", bb.minlat().to_string().as_str()))
+                    .with_attribute(("maxlat", bb.maxlat().to_string().as_str()))
+                    .with_attribute(("minlon", bb.minlon().to_string().as_str()))
+                    .with_attribute(("maxlon", bb.maxlon().to_string().as_str()))
+                    .write_empty()
+                    .unwrap();
             }
             Ok::<(), quick_xml::Error>(())
         })

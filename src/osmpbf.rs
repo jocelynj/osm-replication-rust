@@ -36,6 +36,7 @@ impl OsmCopyTo for OsmPbf {
                             decimicro_lat: node.decimicro_lat,
                             decimicro_lon: node.decimicro_lon,
                             tags: None,
+                            ..Default::default()
                         })
                         .unwrap();
                 }
@@ -46,6 +47,7 @@ impl OsmCopyTo for OsmPbf {
                             id: way.id.0 as u64,
                             nodes,
                             tags: None,
+                            ..Default::default()
                         })
                         .unwrap();
                 }
@@ -83,6 +85,7 @@ impl OsmCopyTo for OsmPbf {
                             id: relation.id.0 as u64,
                             members,
                             tags: Some(tags),
+                            ..Default::default()
                         })
                         .unwrap();
                 }

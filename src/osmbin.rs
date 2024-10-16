@@ -231,6 +231,7 @@ impl OsmReader for OsmBin {
             decimicro_lat,
             decimicro_lon,
             tags: None,
+            ..Default::default()
         })
     }
     fn read_way(&mut self, id: u64) -> Option<Way> {
@@ -270,6 +271,7 @@ impl OsmReader for OsmBin {
             id,
             nodes,
             tags: None,
+            ..Default::default()
         })
     }
     fn read_relation(&mut self, id: u64) -> Option<Relation> {
@@ -477,7 +479,8 @@ mod tests {
                 id: 266053077,
                 decimicro_lat: (17.9031745 * 1e7) as i32,
                 decimicro_lon: (-62.8363074 * 1e7) as i32,
-                tags: None
+                tags: None,
+                ..Default::default()
             },
             node.unwrap()
         );
@@ -488,7 +491,8 @@ mod tests {
                 id: 2619283352,
                 decimicro_lat: (17.9005419 * 1e7) as i32,
                 decimicro_lon: (-62.8327042 * 1e7) as i32,
-                tags: None
+                tags: None,
+                ..Default::default()
             },
             node.unwrap()
         );
@@ -520,7 +524,8 @@ mod tests {
             Way {
                 id: 255316725,
                 nodes: vec![2610107905, 2610107903, 2610107901, 2610107902, 2610107904, 2610107905],
-                tags: None
+                tags: None,
+                ..Default::default()
             },
             way.unwrap()
         );
@@ -557,7 +562,8 @@ mod tests {
                                 (String::from("site"), String::from("geodesic")),
                                 (String::from("source"), String::from("©IGN 2010 dans le cadre de la cartographie réglementaire")),
                                 (String::from("type"), String::from("site")),
-                                (String::from("url"), String::from("http://ancien-geodesie.ign.fr/fiche_geodesie_OM.asp?num_site=9712303&X=519509&Y=1980304"))]))
+                                (String::from("url"), String::from("http://ancien-geodesie.ign.fr/fiche_geodesie_OM.asp?num_site=9712303&X=519509&Y=1980304"))])),
+            ..Default::default()
         };
         assert_eq!(exp_rel, rel.unwrap());
 
@@ -611,6 +617,7 @@ mod tests {
                 (String::from("name:nl"), String::from("Sint Eustatius")),
                 (String::from("type"), String::from("boundary")),
             ])),
+            ..Default::default()
         };
         assert_eq!(exp_rel, rel.unwrap());
 
