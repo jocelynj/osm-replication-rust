@@ -178,7 +178,7 @@ impl OsmCopyTo for OsmXml {
                         if let CurObj::Node(ref mut node) = curobj {
                             node.tags = Some(tags);
                             tags = HashMap::new();
-                            target.write_node(&node)?;
+                            target.write_node(node)?;
                         } else {
                             panic!("Expected an initialized node");
                         }
@@ -189,7 +189,7 @@ impl OsmCopyTo for OsmXml {
                             way.tags = Some(tags);
                             nodes = Vec::new();
                             tags = HashMap::new();
-                            target.write_way(&way)?;
+                            target.write_way(way)?;
                         } else {
                             panic!("Expected an initialized way");
                         }
@@ -200,7 +200,7 @@ impl OsmCopyTo for OsmXml {
                             relation.tags = Some(tags);
                             members = Vec::new();
                             tags = HashMap::new();
-                            target.write_relation(&relation)?;
+                            target.write_relation(relation)?;
                         } else {
                             panic!("Expected an initialized relation");
                         }
@@ -231,7 +231,7 @@ impl OsmCopyTo for OsmXml {
                                 _ => (),
                             }
                         }
-                        target.write_node(&Node {
+                        target.write_node(&mut Node {
                             id,
                             decimicro_lat,
                             decimicro_lon,
@@ -386,7 +386,7 @@ impl OsmUpdateTo for OsmXml {
                         if let CurObj::Node(ref mut node) = curobj {
                             node.tags = Some(tags);
                             tags = HashMap::new();
-                            target.update_node(&node, &curaction)?;
+                            target.update_node(node, &curaction)?;
                         } else {
                             panic!("Expected an initialized node");
                         }
@@ -397,7 +397,7 @@ impl OsmUpdateTo for OsmXml {
                             way.tags = Some(tags);
                             nodes = Vec::new();
                             tags = HashMap::new();
-                            target.update_way(&way, &curaction)?;
+                            target.update_way(way, &curaction)?;
                         } else {
                             panic!("Expected an initialized way");
                         }
@@ -408,7 +408,7 @@ impl OsmUpdateTo for OsmXml {
                             relation.tags = Some(tags);
                             members = Vec::new();
                             tags = HashMap::new();
-                            target.update_relation(&relation, &curaction)?;
+                            target.update_relation(relation, &curaction)?;
                         } else {
                             panic!("Expected an initialized relation");
                         }
@@ -442,14 +442,13 @@ impl OsmUpdateTo for OsmXml {
                                 _ => (),
                             }
                         }
-                        let node = Node {
+                        let mut node = Node {
                             id,
                             decimicro_lat,
                             decimicro_lon,
                             tags: None,
                         };
-                        target.update_node(&node, &curaction)?;
-                        }
+                        target.update_node(&mut node, &curaction)?;
                     }
                     b"nd" => {
                         let nd = e
@@ -507,7 +506,7 @@ impl OsmUpdateTo for OsmXml {
 }
 
 impl OsmWriter for OsmXml {
-    fn write_node(&mut self, node: &Node) -> Result<(), io::Error> {
+    fn write_node(&mut self, node: &mut Node) -> Result<(), io::Error> {
         let elem = self
             .xmlwriter
             .as_mut()
@@ -536,7 +535,7 @@ impl OsmWriter for OsmXml {
 
         Ok(())
     }
-    fn write_way(&mut self, way: &Way) -> Result<(), io::Error> {
+    fn write_way(&mut self, way: &mut Way) -> Result<(), io::Error> {
         let elem = self
             .xmlwriter
             .as_mut()
@@ -569,7 +568,7 @@ impl OsmWriter for OsmXml {
 
         Ok(())
     }
-    fn write_relation(&mut self, relation: &Relation) -> Result<(), io::Error> {
+    fn write_relation(&mut self, relation: &mut Relation) -> Result<(), io::Error> {
         let elem = self
             .xmlwriter
             .as_mut()
@@ -644,17 +643,17 @@ impl OsmWriter for OsmXml {
 }
 
 impl OsmUpdate for OsmXml {
-    fn update_node(&mut self, node: &Node, action: &Action) -> Result<(), io::Error> {
+    fn update_node(&mut self, node: &mut Node, action: &Action) -> Result<(), io::Error> {
         self.write_action_start(action);
         self.write_node(node)?;
         Ok(())
     }
-    fn update_way(&mut self, way: &Way, action: &Action) -> Result<(), io::Error> {
+    fn update_way(&mut self, way: &mut Way, action: &Action) -> Result<(), io::Error> {
         self.write_action_start(action);
         self.write_way(way)?;
         Ok(())
     }
-    fn update_relation(&mut self, relation: &Relation, action: &Action) -> Result<(), io::Error> {
+    fn update_relation(&mut self, relation: &mut Relation, action: &Action) -> Result<(), io::Error> {
         self.write_action_start(action);
         self.write_relation(relation)?;
         Ok(())

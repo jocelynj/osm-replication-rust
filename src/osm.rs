@@ -85,9 +85,9 @@ pub trait OsmReader {
 }
 
 pub trait OsmWriter {
-    fn write_node(&mut self, node: &Node) -> Result<(), io::Error>;
-    fn write_way(&mut self, way: &Way) -> Result<(), io::Error>;
-    fn write_relation(&mut self, relation: &Relation) -> Result<(), io::Error>;
+    fn write_node(&mut self, node: &mut Node) -> Result<(), io::Error>;
+    fn write_way(&mut self, way: &mut Way) -> Result<(), io::Error>;
+    fn write_relation(&mut self, relation: &mut Relation) -> Result<(), io::Error>;
 
     fn write_start(&mut self) -> Result<(), Box<dyn Error>> {
         Ok(())
@@ -116,9 +116,9 @@ pub trait OsmWriter {
 }
 
 pub trait OsmUpdate: OsmWriter {
-    fn update_node(&mut self, node: &Node, action: &Action) -> Result<(), io::Error>;
-    fn update_way(&mut self, way: &Way, action: &Action) -> Result<(), io::Error>;
-    fn update_relation(&mut self, relation: &Relation, action: &Action) -> Result<(), io::Error>;
+    fn update_node(&mut self, node: &mut Node, action: &Action) -> Result<(), io::Error>;
+    fn update_way(&mut self, way: &mut Way, action: &Action) -> Result<(), io::Error>;
+    fn update_relation(&mut self, relation: &mut Relation, action: &Action) -> Result<(), io::Error>;
 
     fn update(&mut self, filename: &str) -> Result<(), Box<dyn Error>>
     where

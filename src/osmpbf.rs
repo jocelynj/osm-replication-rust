@@ -31,7 +31,7 @@ impl OsmCopyTo for OsmPbf {
             match obj {
                 osmpbfreader::OsmObj::Node(node) => {
                     target
-                        .write_node(&Node {
+                        .write_node(&mut Node {
                             id: node.id.0 as u64,
                             decimicro_lat: node.decimicro_lat,
                             decimicro_lon: node.decimicro_lon,
@@ -42,7 +42,7 @@ impl OsmCopyTo for OsmPbf {
                 osmpbfreader::OsmObj::Way(way) => {
                     let nodes: Vec<u64> = way.nodes.iter().map(|x| x.0 as u64).collect();
                     target
-                        .write_way(&Way {
+                        .write_way(&mut Way {
                             id: way.id.0 as u64,
                             nodes,
                             tags: None,
@@ -79,7 +79,7 @@ impl OsmCopyTo for OsmPbf {
                         tags.insert(k.to_string(), v.to_string());
                     }
                     target
-                        .write_relation(&Relation {
+                        .write_relation(&mut Relation {
                             id: relation.id.0 as u64,
                             members,
                             tags: Some(tags),

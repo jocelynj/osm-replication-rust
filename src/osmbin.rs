@@ -297,7 +297,7 @@ impl OsmReader for OsmBin {
 }
 
 impl OsmWriter for OsmBin {
-    fn write_node(&mut self, node: &Node) -> Result<(), io::Error> {
+    fn write_node(&mut self, node: &mut Node) -> Result<(), io::Error> {
         let lat = Self::coord_to_bytes4(node.decimicro_lat);
         let lon = Self::coord_to_bytes4(node.decimicro_lon);
         let node_crd_addr = node.id * 8;
@@ -311,12 +311,12 @@ impl OsmWriter for OsmBin {
 
         Ok(())
     }
-    fn write_way(&mut self, way: &Way) -> Result<(), io::Error> {
+    fn write_way(&mut self, way: &mut Way) -> Result<(), io::Error> {
         let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
 
         // Only need to delete way if it could be inside file
         if way_idx_addr < self.way_idx_size {
-            self.update_way(&way, &Action::Delete())?;
+            self.update_way(way, &Action::Delete())?;
         }
         let num_nodes = way.nodes.len() as u16;
         let way_data_addr = self
@@ -349,7 +349,7 @@ impl OsmWriter for OsmBin {
 
         Ok(())
     }
-    fn write_relation(&mut self, relation: &Relation) -> Result<(), io::Error> {
+    fn write_relation(&mut self, relation: &mut Relation) -> Result<(), io::Error> {
         let relid_digits = Self::to_digits(relation.id);
         let relid_part0 = Self::join_nums(&relid_digits[0..3]);
         let relid_part1 = Self::join_nums(&relid_digits[3..6]);
@@ -375,7 +375,7 @@ impl OsmWriter for OsmBin {
 }
 
 impl OsmUpdate for OsmBin {
-    fn update_node(&mut self, node: &Node, action: &Action) -> Result<(), io::Error> {
+    fn update_node(&mut self, node: &mut Node, action: &Action) -> Result<(), io::Error> {
         if *action == Action::Delete() {
             let empty: Vec<u8> = vec![0; 8];
             self.node_crd.seek(SeekFrom::Start(node.id * 8))?;
@@ -386,7 +386,7 @@ impl OsmUpdate for OsmBin {
 
         Ok(())
     }
-    fn update_way(&mut self, way: &Way, action: &Action) -> Result<(), io::Error> {
+    fn update_way(&mut self, way: &mut Way, action: &Action) -> Result<(), io::Error> {
         if *action == Action::Delete() {
             let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
             self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
@@ -427,7 +427,7 @@ impl OsmUpdate for OsmBin {
         }
         Ok(())
     }
-    fn update_relation(&mut self, relation: &Relation, action: &Action) -> Result<(), io::Error> {
+    fn update_relation(&mut self, relation: &mut Relation, action: &Action) -> Result<(), io::Error> {
         if *action == Action::Delete() {
             let relid_digits = Self::to_digits(relation.id);
             let relid_part0 = Self::join_nums(&relid_digits[0..3]);
