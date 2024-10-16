@@ -76,27 +76,32 @@ impl OsmXmlBBox {
         self.expand_bbox_way_only(bbox, &way);
     }
 
-    fn expand_bbox_relation_only(&mut self, bbox: &mut Option<BoundingBox>, relation: &Relation) {
+    fn expand_bbox_relation_only(&mut self, bbox: &mut Option<BoundingBox>, relation: &Relation, prev_relations: Vec<u64>) {
         for m in &relation.members {
             match m.type_.as_str() {
                 "node" => self.expand_bbox_node_id(bbox, m.ref_),
                 "way" => self.expand_bbox_way_id(bbox, m.ref_),
-                "relation" => self.expand_bbox_relation_id(bbox, m.ref_),
+                "relation" => self.expand_bbox_relation_id(bbox, m.ref_, prev_relations.clone()),
                 _ => panic!("Unsupported relation member: {:?}", m),
             }
         }
     }
-    fn expand_bbox_relation_id(&mut self, bbox: &mut Option<BoundingBox>, id: u64) {
+    fn expand_bbox_relation_id(&mut self, bbox: &mut Option<BoundingBox>, id: u64, mut prev_relations: Vec<u64>) {
+        if prev_relations.contains(&id) {
+            println!("Detected relation recursion on id={} - {:?}", id, prev_relations);
+            return;
+        }
         if let Some(bb) = self.relations_modified.get(&id) {
             expand_bbox(bbox, bb);
         }
         if let Some(relation) = self.reader.read_relation(id) {
-            self.expand_bbox_relation_only(bbox, &relation);
+            prev_relations.push(id);
+            self.expand_bbox_relation_only(bbox, &relation, prev_relations);
         }
     }
     fn expand_bbox_relation(&mut self, bbox: &mut Option<BoundingBox>, relation: &Relation) {
-        self.expand_bbox_relation_id(bbox, relation.id);
-        self.expand_bbox_relation_only(bbox, &relation);
+        self.expand_bbox_relation_id(bbox, relation.id, vec![]);
+        self.expand_bbox_relation_only(bbox, &relation, vec![relation.id]);
     }
 }
 
