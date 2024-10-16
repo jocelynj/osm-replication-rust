@@ -1,11 +1,11 @@
-use std::collections::HashMap; 
+use std::collections::HashMap;
 use std::error::Error;
 use std::io;
 
 use crate::osm::{Action, BoundingBox, Node, Relation, Way};
-use crate::osm::{OsmUpdate, OsmReader, OsmWriter};
-use crate::osmxml::OsmXml;
+use crate::osm::{OsmReader, OsmUpdate, OsmWriter};
 use crate::osmbin;
+use crate::osmxml::OsmXml;
 
 pub struct OsmXmlBBox {
     xmlwriter: OsmXml,
@@ -21,7 +21,7 @@ fn expand_bbox(bbox: &mut Option<BoundingBox>, bbox2: &BoundingBox) {
         *bbox = Some(bbox2.clone());
     }
 }
- 
+
 impl OsmXmlBBox {
     pub fn new_osmbin(filename: &str, dir_osmbin: &str) -> Result<OsmXmlBBox, ()> {
         Ok(OsmXmlBBox {
@@ -32,7 +32,7 @@ impl OsmXmlBBox {
             relations_modified: HashMap::new(),
         })
     }
-   
+
     fn expand_bbox_node_only(&mut self, bbox: &mut Option<BoundingBox>, node: &Node) {
         if let Some(bb) = bbox.as_mut() {
             bb.expand_node(node);
@@ -76,7 +76,12 @@ impl OsmXmlBBox {
         self.expand_bbox_way_only(bbox, &way);
     }
 
-    fn expand_bbox_relation_only(&mut self, bbox: &mut Option<BoundingBox>, relation: &Relation, prev_relations: Vec<u64>) {
+    fn expand_bbox_relation_only(
+        &mut self,
+        bbox: &mut Option<BoundingBox>,
+        relation: &Relation,
+        prev_relations: Vec<u64>,
+    ) {
         for m in &relation.members {
             match m.type_.as_str() {
                 "node" => self.expand_bbox_node_id(bbox, m.ref_),
@@ -86,9 +91,17 @@ impl OsmXmlBBox {
             }
         }
     }
-    fn expand_bbox_relation_id(&mut self, bbox: &mut Option<BoundingBox>, id: u64, mut prev_relations: Vec<u64>) {
+    fn expand_bbox_relation_id(
+        &mut self,
+        bbox: &mut Option<BoundingBox>,
+        id: u64,
+        mut prev_relations: Vec<u64>,
+    ) {
         if prev_relations.contains(&id) {
-            println!("Detected relation recursion on id={} - {:?}", id, prev_relations);
+            println!(
+                "Detected relation recursion on id={} - {:?}",
+                id, prev_relations
+            );
             return;
         }
         if let Some(bb) = self.relations_modified.get(&id) {
@@ -152,7 +165,11 @@ impl OsmUpdate for OsmXmlBBox {
         self.write_way(way)?;
         Ok(())
     }
-    fn update_relation(&mut self, relation: &mut Relation, action: &Action) -> Result<(), io::Error> {
+    fn update_relation(
+        &mut self,
+        relation: &mut Relation,
+        action: &Action,
+    ) -> Result<(), io::Error> {
         self.xmlwriter.write_action_start(action);
         self.write_relation(relation)?;
         Ok(())

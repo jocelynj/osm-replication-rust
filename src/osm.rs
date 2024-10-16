@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::cmp::{min, max};
+use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -164,7 +164,11 @@ pub trait OsmWriter {
 pub trait OsmUpdate: OsmWriter {
     fn update_node(&mut self, node: &mut Node, action: &Action) -> Result<(), io::Error>;
     fn update_way(&mut self, way: &mut Way, action: &Action) -> Result<(), io::Error>;
-    fn update_relation(&mut self, relation: &mut Relation, action: &Action) -> Result<(), io::Error>;
+    fn update_relation(
+        &mut self,
+        relation: &mut Relation,
+        action: &Action,
+    ) -> Result<(), io::Error>;
 
     fn update(&mut self, filename: &str) -> Result<(), Box<dyn Error>>
     where

@@ -429,7 +429,11 @@ impl OsmUpdate for OsmBin {
         }
         Ok(())
     }
-    fn update_relation(&mut self, relation: &mut Relation, action: &Action) -> Result<(), io::Error> {
+    fn update_relation(
+        &mut self,
+        relation: &mut Relation,
+        action: &Action,
+    ) -> Result<(), io::Error> {
         if *action == Action::Delete() {
             let relid_digits = Self::to_digits(relation.id);
             let relid_part0 = Self::join_nums(&relid_digits[0..3]);

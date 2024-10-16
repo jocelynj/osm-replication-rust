@@ -24,7 +24,8 @@ fn main() {
         osmxml.import(&args.source).unwrap();
     } else if args.source.ends_with(".osc") || args.source.ends_with(".osc.gz") {
         if args.bbox {
-            let mut osmxml = osmxml::bbox::OsmXmlBBox::new_osmbin(&args.dest, &args.osmbin).unwrap();
+            let mut osmxml =
+                osmxml::bbox::OsmXmlBBox::new_osmbin(&args.dest, &args.osmbin).unwrap();
             osmxml.update(&args.source).unwrap();
         } else {
             let mut osmxml = osmxml::OsmXml::new(&args.dest).unwrap();

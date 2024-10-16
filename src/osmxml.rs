@@ -695,7 +695,11 @@ impl OsmUpdate for OsmXml {
         self.write_way(way)?;
         Ok(())
     }
-    fn update_relation(&mut self, relation: &mut Relation, action: &Action) -> Result<(), io::Error> {
+    fn update_relation(
+        &mut self,
+        relation: &mut Relation,
+        action: &Action,
+    ) -> Result<(), io::Error> {
         self.write_action_start(action);
         self.write_relation(relation)?;
         Ok(())
