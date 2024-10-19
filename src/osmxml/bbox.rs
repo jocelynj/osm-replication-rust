@@ -7,9 +7,12 @@ use crate::osm::{OsmReader, OsmUpdate, OsmWriter};
 use crate::osmbin;
 use crate::osmxml::OsmXml;
 
-pub struct OsmXmlBBox {
+pub struct OsmXmlBBox<T>
+where
+    T: OsmReader,
+{
     xmlwriter: OsmXml,
-    reader: Box<dyn OsmReader>,
+    reader: T,
     nodes_modified: HashMap<u64, BoundingBox>,
     ways_modified: HashMap<u64, BoundingBox>,
     relations_modified: HashMap<u64, BoundingBox>,
@@ -22,17 +25,23 @@ fn expand_bbox(bbox: &mut Option<BoundingBox>, bbox2: &BoundingBox) {
     }
 }
 
-impl OsmXmlBBox {
-    pub fn new_osmbin(filename: &str, dir_osmbin: &str) -> Result<OsmXmlBBox, ()> {
+impl OsmXmlBBox<osmbin::OsmBin> {
+    pub fn new_osmbin(filename: &str, dir_osmbin: &str) -> Result<OsmXmlBBox<osmbin::OsmBin>, ()> {
+        let reader = osmbin::OsmBin::new(dir_osmbin).unwrap();
         Ok(OsmXmlBBox {
             xmlwriter: OsmXml::new(filename).unwrap(),
-            reader: Box::new(osmbin::OsmBin::new(dir_osmbin).unwrap()),
+            reader: reader,
             nodes_modified: HashMap::new(),
             ways_modified: HashMap::new(),
             relations_modified: HashMap::new(),
         })
     }
+}
 
+impl<T> OsmXmlBBox<T>
+where
+    T: OsmReader,
+{
     fn expand_bbox_node_only(&mut self, bbox: &mut Option<BoundingBox>, node: &Node) {
         if let Some(bb) = bbox.as_mut() {
             bb.expand_node(node);
@@ -118,7 +127,10 @@ impl OsmXmlBBox {
     }
 }
 
-impl OsmWriter for OsmXmlBBox {
+impl<T> OsmWriter for OsmXmlBBox<T>
+where
+    T: OsmReader,
+{
     fn write_node(&mut self, node: &mut Node) -> Result<(), io::Error> {
         let mut bbox: Option<BoundingBox> = None;
         self.expand_bbox_node(&mut bbox, node);
@@ -154,7 +166,10 @@ impl OsmWriter for OsmXmlBBox {
         self.xmlwriter.write_end()
     }
 }
-impl OsmUpdate for OsmXmlBBox {
+impl<T> OsmUpdate for OsmXmlBBox<T>
+where
+    T: OsmReader,
+{
     fn update_node(&mut self, node: &mut Node, action: &Action) -> Result<(), io::Error> {
         self.xmlwriter.write_action_start(action);
         self.write_node(node)?;
@@ -173,5 +188,57 @@ impl OsmUpdate for OsmXmlBBox {
         self.xmlwriter.write_action_start(action);
         self.write_relation(relation)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile;
+
+    #[derive(Debug, Default)]
+    struct MockReader {
+        num_read_nodes: usize,
+        num_read_ways: usize,
+        num_read_relations: usize,
+    }
+    impl OsmReader for MockReader {
+        fn read_node(&mut self, _id: u64) -> Option<Node> {
+            self.num_read_nodes += 1;
+            None
+        }
+        fn read_way(&mut self, _id: u64) -> Option<Way> {
+            self.num_read_ways += 1;
+            None
+        }
+        fn read_relation(&mut self, _id: u64) -> Option<Relation> {
+            self.num_read_relations += 1;
+            None
+        }
+    }
+
+    fn new_mockreader(filename: &str, reader: MockReader) -> OsmXmlBBox<MockReader> {
+        OsmXmlBBox {
+            xmlwriter: OsmXml::new(filename).unwrap(),
+            reader: reader,
+            nodes_modified: HashMap::new(),
+            ways_modified: HashMap::new(),
+            relations_modified: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn saint_barthelemy() {
+        let reader = MockReader {
+            ..Default::default()
+        };
+        let src = String::from("tests/resources/saint_barthelemy.osc.gz");
+        let dest = tempfile::NamedTempFile::new().unwrap();
+        let mut osmxmlbbox = new_mockreader(dest.path().to_str().unwrap(), reader);
+        osmxmlbbox.update(&src).unwrap();
+
+        assert_eq!(33, osmxmlbbox.reader.num_read_nodes);
+        assert_eq!(7, osmxmlbbox.reader.num_read_ways);
+        assert_eq!(7, osmxmlbbox.reader.num_read_relations);
     }
 }
