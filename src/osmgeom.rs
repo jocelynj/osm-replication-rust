@@ -8,12 +8,12 @@ use crate::osm::Node;
 
 pub fn read_multipolygon_from_wkt(
     filename: &str,
-) -> Result<(String, MultiPolygon<i32>), Box<dyn Error>> {
+) -> Result<(String, MultiPolygon<i64>), Box<dyn Error>> {
     let src = fs::read_to_string(filename)?;
     let mut lines = src.lines();
     let name = String::from(lines.next().unwrap());
 
-    let mut polygons: Vec<Polygon<i32>> = Vec::new();
+    let mut polygons: Vec<Polygon<i64>> = Vec::new();
 
     loop {
         let line = lines.next();
@@ -37,8 +37,8 @@ pub fn read_multipolygon_from_wkt(
     Ok((name, multipolygon))
 }
 
-fn read_polygon(lines: &mut str::Lines) -> Result<Polygon<i32>, Box<dyn Error>> {
-    let mut coords: Vec<Coord<i32>> = Vec::new();
+fn read_polygon(lines: &mut str::Lines) -> Result<Polygon<i64>, Box<dyn Error>> {
+    let mut coords: Vec<Coord<i64>> = Vec::new();
     loop {
         let line = lines.next();
         if line.is_none() {
@@ -53,7 +53,7 @@ fn read_polygon(lines: &mut str::Lines) -> Result<Polygon<i32>, Box<dyn Error>> 
         let y: f64 = c.next().unwrap().parse().unwrap();
         let x = Node::coord_to_decimicro(x);
         let y = Node::coord_to_decimicro(y);
-        coords.push(coord!(x: x, y: y))
+        coords.push(coord!(x: x as i64, y: y as i64))
     }
     let linestring = LineString::new(coords);
     let polygon = Polygon::new(linestring, vec![]);
@@ -71,7 +71,7 @@ mod tests {
         assert_eq!("africa", res.0);
         assert_eq!(1, res.1 .0.len()); // number of polygons
 
-        let expected_polygon: Polygon<i32> = polygon![
+        let expected_polygon: Polygon<i64> = polygon![
         (x: 116009200, y: 339987500),
         (x: 116020700, y: 377781700),
         (x: 35259890, y: 377644400),
