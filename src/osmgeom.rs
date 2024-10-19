@@ -1,10 +1,10 @@
 use geo;
-use geo::{coord, Coord, LineString, MultiPolygon, Polygon};
+use geo::{coord, polygon, Coord, LineString, MultiPolygon, Polygon};
 use std::error::Error;
 use std::fs;
 use std::str;
 
-use crate::osm::Node;
+use crate::osm::{BoundingBox, Node};
 
 pub fn read_multipolygon_from_wkt(
     filename: &str,
@@ -58,6 +58,16 @@ fn read_polygon(lines: &mut str::Lines) -> Result<Polygon<i64>, Box<dyn Error>> 
     let linestring = LineString::new(coords);
     let polygon = Polygon::new(linestring, vec![]);
     Ok(polygon)
+}
+
+pub fn bounding_box_to_polygon(bbox: &BoundingBox) -> Polygon<i64> {
+    polygon![
+        (x: bbox.decimicro_minlon as i64, y: bbox.decimicro_minlat as i64),
+        (x: bbox.decimicro_minlon as i64, y: bbox.decimicro_maxlat as i64),
+        (x: bbox.decimicro_maxlon as i64, y: bbox.decimicro_maxlat as i64),
+        (x: bbox.decimicro_maxlon as i64, y: bbox.decimicro_minlat as i64),
+        (x: bbox.decimicro_minlon as i64, y: bbox.decimicro_minlat as i64),
+    ]
 }
 
 #[cfg(test)]

@@ -12,6 +12,13 @@ struct Args {
     pub dest: String,
     #[arg(long, help = "Add bbox field", requires = "osmbin")]
     pub bbox: bool,
+    #[arg(
+        long,
+        help = "Filter with given polygon",
+        requires = "osmbin",
+        conflicts_with = "bbox"
+    )]
+    pub filter: Option<String>,
     #[arg(long, help = "Directory for osmbin database", required = false)]
     pub osmbin: String,
 }
@@ -26,6 +33,11 @@ fn main() {
         if args.bbox {
             let mut osmxml =
                 osmxml::bbox::OsmXmlBBox::new_osmbin(&args.dest, &args.osmbin).unwrap();
+            osmxml.update(&args.source).unwrap();
+        } else if let Some(filter) = args.filter {
+            let mut osmxml =
+                osmxml::filter::OsmXmlFilter::new_osmbin(&args.dest, &args.osmbin, &filter)
+                    .unwrap();
             osmxml.update(&args.source).unwrap();
         } else {
             let mut osmxml = osmxml::OsmXml::new(&args.dest).unwrap();

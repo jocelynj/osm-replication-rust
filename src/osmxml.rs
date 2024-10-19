@@ -11,10 +11,11 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::str;
 
-use crate::osm::{Action, Member, Node, Relation, Way};
+use crate::osm::{Action, BoundingBox, Member, Node, Relation, Way};
 use crate::osm::{OsmCopyTo, OsmUpdate, OsmUpdateTo, OsmWriter};
 
 pub mod bbox;
+pub mod filter;
 
 enum CurObj {
     Empty(),
@@ -308,6 +309,7 @@ impl OsmUpdateTo for OsmXml {
         let mut tags: HashMap<String, String> = HashMap::new();
         let mut nodes: Vec<u64> = Vec::new();
         let mut members: Vec<Member> = Vec::new();
+        let mut bbox: Option<BoundingBox> = None;
 
         let mut curaction = Action::None;
         let mut curobj = CurObj::Empty();
@@ -394,7 +396,9 @@ impl OsmUpdateTo for OsmXml {
                     b"node" => {
                         if let CurObj::Node(ref mut node) = curobj {
                             node.tags = Some(tags);
+                            node.bbox = bbox;
                             tags = HashMap::new();
+                            bbox = None;
                             target.update_node(node, &curaction)?;
                         } else {
                             panic!("Expected an initialized node");
@@ -404,8 +408,10 @@ impl OsmUpdateTo for OsmXml {
                         if let CurObj::Way(ref mut way) = curobj {
                             way.nodes = nodes;
                             way.tags = Some(tags);
+                            way.bbox = bbox;
                             nodes = Vec::new();
                             tags = HashMap::new();
+                            bbox = None;
                             target.update_way(way, &curaction)?;
                         } else {
                             panic!("Expected an initialized way");
@@ -415,8 +421,10 @@ impl OsmUpdateTo for OsmXml {
                         if let CurObj::Relation(ref mut relation) = curobj {
                             relation.members = members;
                             relation.tags = Some(tags);
+                            relation.bbox = bbox;
                             members = Vec::new();
                             tags = HashMap::new();
+                            bbox = None;
                             target.update_relation(relation, &curaction)?;
                         } else {
                             panic!("Expected an initialized relation");
@@ -502,6 +510,43 @@ impl OsmUpdateTo for OsmXml {
                             }
                         }
                         tags.insert(key, val);
+                    }
+                    b"bbox" => {
+                        let mut decimicro_minlat: i32 = 0;
+                        let mut decimicro_maxlat: i32 = 0;
+                        let mut decimicro_minlon: i32 = 0;
+                        let mut decimicro_maxlon: i32 = 0;
+                        for a in e.attributes() {
+                            let a = a.unwrap();
+                            let k = a.key.as_ref();
+                            let v = str::from_utf8(&a.value).unwrap();
+
+                            match k {
+                                b"minlat" => {
+                                    decimicro_minlat =
+                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                }
+                                b"maxlat" => {
+                                    decimicro_maxlat =
+                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                }
+                                b"minlon" => {
+                                    decimicro_minlon =
+                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                }
+                                b"maxlon" => {
+                                    decimicro_maxlon =
+                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                }
+                                _ => (),
+                            }
+                        }
+                        bbox = Some(BoundingBox {
+                            decimicro_minlat,
+                            decimicro_maxlat,
+                            decimicro_minlon,
+                            decimicro_maxlon,
+                        });
                     }
                     k => panic!("Unsupported empty element: {}", str::from_utf8(&k)?),
                 },
