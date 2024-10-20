@@ -9,9 +9,12 @@ use crate::osmbin;
 use crate::osmgeom;
 use crate::osmxml::OsmXml;
 
-pub struct OsmXmlFilter {
+pub struct OsmXmlFilter<T>
+where
+    T: OsmReader,
+{
     xmlwriter: OsmXml,
-    reader: Box<dyn OsmReader>,
+    reader: T,
     poly: MultiPolygon<i64>,
     poly_buffered: MultiPolygon<i64>,
     nodes_seen_in_poly: HashSet<u64>,
@@ -19,17 +22,17 @@ pub struct OsmXmlFilter {
     relations_seen_in_poly: HashSet<u64>,
 }
 
-impl OsmXmlFilter {
+impl OsmXmlFilter<osmbin::OsmBin> {
     pub fn new_osmbin(
         filename: &str,
         dir_osmbin: &str,
         poly_file: &str,
-    ) -> Result<OsmXmlFilter, ()> {
+    ) -> Result<OsmXmlFilter<osmbin::OsmBin>, ()> {
         let poly: MultiPolygon<i64> = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
         let poly_buffered = poly.clone(); // TODO
         Ok(OsmXmlFilter {
             xmlwriter: OsmXml::new(filename).unwrap(),
-            reader: Box::new(osmbin::OsmBin::new(dir_osmbin).unwrap()),
+            reader: osmbin::OsmBin::new(dir_osmbin).unwrap(),
             poly,
             poly_buffered,
             nodes_seen_in_poly: HashSet::new(),
@@ -37,7 +40,12 @@ impl OsmXmlFilter {
             relations_seen_in_poly: HashSet::new(),
         })
     }
+}
 
+impl<T> OsmXmlFilter<T>
+where
+    T: OsmReader,
+{
     fn node_in_poly(&mut self, id: u64) -> bool {
         if self.nodes_seen_in_poly.contains(&id) {
             return true;
@@ -88,7 +96,10 @@ impl OsmXmlFilter {
     }
 }
 
-impl OsmWriter for OsmXmlFilter {
+impl<T> OsmWriter for OsmXmlFilter<T>
+where
+    T: OsmReader,
+{
     fn write_node(&mut self, node: &mut Node) -> Result<(), io::Error> {
         self.xmlwriter.write_node(node)
     }
@@ -105,7 +116,10 @@ impl OsmWriter for OsmXmlFilter {
         self.xmlwriter.write_end()
     }
 }
-impl OsmUpdate for OsmXmlFilter {
+impl<T> OsmUpdate for OsmXmlFilter<T>
+where
+    T: OsmReader,
+{
     fn update_node(&mut self, node: &mut Node, action: &Action) -> Result<(), io::Error> {
         let bbox = osmgeom::bounding_box_to_polygon(
             &node
@@ -184,5 +198,62 @@ impl OsmUpdate for OsmXmlFilter {
             self.write_relation(relation)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile;
+
+    #[derive(Debug, Default)]
+    struct MockReader {
+        num_read_nodes: usize,
+        num_read_ways: usize,
+        num_read_relations: usize,
+    }
+    impl OsmReader for MockReader {
+        fn read_node(&mut self, _id: u64) -> Option<Node> {
+            self.num_read_nodes += 1;
+            None
+        }
+        fn read_way(&mut self, _id: u64) -> Option<Way> {
+            self.num_read_ways += 1;
+            None
+        }
+        fn read_relation(&mut self, _id: u64) -> Option<Relation> {
+            self.num_read_relations += 1;
+            None
+        }
+    }
+
+    fn new_mockreader(filename: &str, reader: MockReader, poly_file: &str) -> OsmXmlFilter<MockReader> {
+        let poly: MultiPolygon<i64> = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
+        let poly_buffered = poly.clone(); // TODO
+        OsmXmlFilter {
+            xmlwriter: OsmXml::new(filename).unwrap(),
+            reader: reader,
+            poly,
+            poly_buffered,
+            nodes_seen_in_poly: HashSet::new(),
+            ways_seen_in_poly: HashSet::new(),
+            relations_seen_in_poly: HashSet::new(),
+        }
+    }
+
+    #[test]
+    fn saint_barthelemy() {
+        let reader = MockReader {
+            ..Default::default()
+        };
+        let src = String::from("tests/resources/saint_barthelemy.bbox.osc.gz");
+        let poly = String::from("tests/resources/saint_barthelemy.poly");
+        let dest = tempfile::NamedTempFile::new().unwrap();
+        let mut osmxmlfilter = new_mockreader(dest.path().to_str().unwrap(), reader, &poly);
+        osmxmlfilter.update(&src).unwrap();
+
+        assert_eq!(24, osmxmlfilter.reader.num_read_nodes);
+        assert_eq!(2, osmxmlfilter.reader.num_read_ways);
+        assert_eq!(2, osmxmlfilter.reader.num_read_relations);
     }
 }
