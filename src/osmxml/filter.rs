@@ -74,9 +74,16 @@ where
         }
         false
     }
-    fn relation_in_poly(&mut self, id: u64) -> bool {
+    fn relation_in_poly(&mut self, id: u64, prev_relations: Vec<u64>) -> bool {
         if self.relations_seen_in_poly.contains(&id) {
             return true;
+        }
+        if prev_relations.contains(&id) {
+            println!(
+                "Detected relation recursion on id={} - {:?}",
+                id, prev_relations
+            );
+            return false;
         }
         let relation = self.reader.read_relation(id);
         if let Some(relation) = relation {
@@ -84,7 +91,11 @@ where
                 let is_inside = match m.type_.as_str() {
                     "node" => self.node_in_poly(m.ref_),
                     "way" => self.way_in_poly(m.ref_),
-                    "relation" => self.relation_in_poly(m.ref_),
+                    "relation" => {
+                        let mut prev_relations = prev_relations.clone();
+                        prev_relations.push(id);
+                        self.relation_in_poly(m.ref_, prev_relations)
+                    }
                     _ => panic!("Unsupported relation member: {:?}", m),
                 };
                 if is_inside {
@@ -182,7 +193,7 @@ where
                 is_inside = match m.type_.as_str() {
                     "node" => self.node_in_poly(m.ref_),
                     "way" => self.way_in_poly(m.ref_),
-                    "relation" => self.relation_in_poly(m.ref_),
+                    "relation" => self.relation_in_poly(m.ref_, vec![]),
                     _ => panic!("Unsupported relation member: {:?}", m),
                 };
                 if is_inside {
