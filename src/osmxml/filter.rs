@@ -151,12 +151,18 @@ impl OsmUpdate for OsmXmlFilter {
         relation: &mut Relation,
         action: &Action,
     ) -> Result<(), io::Error> {
-        let bbox = osmgeom::bounding_box_to_polygon(
-            &relation
-                .bbox
-                .expect("Input OSC XML file must contain bbox tags"),
-        );
-        if bbox.intersects(&self.poly_buffered) {
+        let mut inside_bbox;
+
+        if let Some(bbox) = &relation.bbox {
+            inside_bbox = false;
+            let bbox = osmgeom::bounding_box_to_polygon(bbox);
+            if bbox.intersects(&self.poly_buffered) {
+                inside_bbox = true;
+            }
+        } else {
+            inside_bbox = true;
+        }
+        if inside_bbox {
             let mut is_inside = false;
             for m in &relation.members {
                 is_inside = match m.type_.as_str() {
