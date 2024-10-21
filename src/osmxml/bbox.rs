@@ -196,6 +196,8 @@ mod tests {
     use super::*;
     use tempfile;
 
+    use crate::osm::Member;
+
     #[derive(Debug, Default)]
     struct MockReader {
         num_read_nodes: usize,
@@ -211,9 +213,35 @@ mod tests {
             self.num_read_ways += 1;
             None
         }
-        fn read_relation(&mut self, _id: u64) -> Option<Relation> {
+        fn read_relation(&mut self, id: u64) -> Option<Relation> {
             self.num_read_relations += 1;
-            None
+
+            // Recursion between relations 7801 and 7802
+            if id == 7802 {
+                Some(Relation {
+                    id,
+                    members: vec![Member {
+                        ref_: 7801,
+                        role: String::from("subarea"),
+                        type_: String::from("relation"),
+                    }],
+                    tags: None,
+                    bbox: None,
+                })
+            } else if id == 7801 {
+                Some(Relation {
+                    id,
+                    members: vec![Member {
+                        ref_: 7802,
+                        role: String::from("subarea"),
+                        type_: String::from("relation"),
+                    }],
+                    tags: None,
+                    bbox: None,
+                })
+            } else {
+                None
+            }
         }
     }
 
@@ -239,6 +267,6 @@ mod tests {
 
         assert_eq!(33, osmxmlbbox.reader.num_read_nodes);
         assert_eq!(7, osmxmlbbox.reader.num_read_ways);
-        assert_eq!(7, osmxmlbbox.reader.num_read_relations);
+        assert_eq!(9, osmxmlbbox.reader.num_read_relations);
     }
 }
