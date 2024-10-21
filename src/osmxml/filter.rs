@@ -1,9 +1,10 @@
-use geo::{point, Intersects, MultiPolygon};
+use geo::{point, Coord, Geometry, Intersects, MapCoords, MultiPolygon};
+use geos::{self, Geom};
 use std::collections::HashSet;
 use std::error::Error;
 use std::io;
 
-use crate::osm::{Action, Node, Relation, Way};
+use crate::osm::{self, Action, Node, Relation, Way};
 use crate::osm::{OsmReader, OsmUpdate, OsmWriter};
 use crate::osmbin;
 use crate::osmgeom;
@@ -22,14 +23,42 @@ where
     relations_seen_in_poly: HashSet<u64>,
 }
 
+fn convert_multipolygon_i64_to_f64(poly: &MultiPolygon<i64>) -> MultiPolygon<f64> {
+    poly.map_coords(|Coord { x, y }| Coord {
+        x: osm::decimicro_to_coord(x as i32),
+        y: osm::decimicro_to_coord(y as i32),
+    })
+}
+fn convert_multipolygon_f64_to_i64(poly: &MultiPolygon<f64>) -> MultiPolygon<i64> {
+    poly.map_coords(|Coord { x, y }| Coord {
+        x: osm::coord_to_decimicro(x) as i64,
+        y: osm::coord_to_decimicro(y) as i64,
+    })
+}
+
+fn buffer_polygon(mp: &MultiPolygon<i64>) -> MultiPolygon<i64> {
+    let poly_buffered = convert_multipolygon_i64_to_f64(&mp);
+    let geos_poly_buffered: geos::Geometry = (&poly_buffered).try_into().unwrap();
+    let geos_poly_buffered = geos_poly_buffered.buffer(0.1, 8).unwrap();
+    let geom_buffered: Geometry = (&geos_poly_buffered).try_into().unwrap();
+
+    let poly_buffered = match geom_buffered {
+        Geometry::Polygon(p) => MultiPolygon::new(vec![p]),
+        Geometry::MultiPolygon(mp) => mp,
+        g => panic!("Unexpected object returned by GEOS: {:?}", g),
+    };
+    convert_multipolygon_f64_to_i64(&poly_buffered)
+}
+
 impl OsmXmlFilter<osmbin::OsmBin> {
     pub fn new_osmbin(
         filename: &str,
         dir_osmbin: &str,
         poly_file: &str,
     ) -> Result<OsmXmlFilter<osmbin::OsmBin>, ()> {
-        let poly: MultiPolygon<i64> = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
-        let poly_buffered = poly.clone(); // TODO
+        let poly = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
+        let poly_buffered = buffer_polygon(&poly.clone());
+
         Ok(OsmXmlFilter {
             xmlwriter: OsmXml::new(filename).unwrap(),
             reader: osmbin::OsmBin::new(dir_osmbin).unwrap(),
@@ -238,9 +267,13 @@ mod tests {
         }
     }
 
-    fn new_mockreader(filename: &str, reader: MockReader, poly_file: &str) -> OsmXmlFilter<MockReader> {
-        let poly: MultiPolygon<i64> = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
-        let poly_buffered = poly.clone(); // TODO
+    fn new_mockreader(
+        filename: &str,
+        reader: MockReader,
+        poly_file: &str,
+    ) -> OsmXmlFilter<MockReader> {
+        let poly = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
+        let poly_buffered = buffer_polygon(&poly.clone());
         OsmXmlFilter {
             xmlwriter: OsmXml::new(filename).unwrap(),
             reader: reader,
