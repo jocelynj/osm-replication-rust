@@ -25,14 +25,11 @@ pub struct Node {
 impl Node {
     /// Returns the latitude of the node in degrees.
     pub fn lat(&self) -> f64 {
-        self.decimicro_lat as f64 * 1e-7
+        decimicro_to_coord(self.decimicro_lat)
     }
     /// Returns the longitude of the node in degrees.
     pub fn lon(&self) -> f64 {
-        self.decimicro_lon as f64 * 1e-7
-    }
-    pub fn coord_to_decimicro(coord: f64) -> i32 {
-        (coord * 1e7).round() as i32
+        decimicro_to_coord(self.decimicro_lon)
     }
 }
 
@@ -77,6 +74,13 @@ pub struct Relation {
     pub bbox: Option<BoundingBox>,
 }
 
+pub fn coord_to_decimicro(coord: f64) -> i32 {
+    (coord * 1e7).round() as i32
+}
+pub fn decimicro_to_coord(decimicro: i32) -> f64 {
+    (decimicro as f64) * 1e-7
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct BoundingBox {
     pub decimicro_minlat: i32,
@@ -103,16 +107,16 @@ impl BoundingBox {
     }
 
     pub fn minlat(&self) -> f64 {
-        self.decimicro_minlat as f64 * 1e-7
+        decimicro_to_coord(self.decimicro_minlat)
     }
     pub fn maxlat(&self) -> f64 {
-        self.decimicro_maxlat as f64 * 1e-7
+        decimicro_to_coord(self.decimicro_maxlat)
     }
     pub fn minlon(&self) -> f64 {
-        self.decimicro_minlon as f64 * 1e-7
+        decimicro_to_coord(self.decimicro_minlon)
     }
     pub fn maxlon(&self) -> f64 {
-        self.decimicro_maxlon as f64 * 1e-7
+        decimicro_to_coord(self.decimicro_maxlon)
     }
 }
 

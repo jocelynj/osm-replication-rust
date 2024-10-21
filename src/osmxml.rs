@@ -11,7 +11,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::str;
 
-use crate::osm::{Action, BoundingBox, Member, Node, Relation, Way};
+use crate::osm::{self, Action, BoundingBox, Member, Node, Relation, Way};
 use crate::osm::{OsmCopyTo, OsmUpdate, OsmUpdateTo, OsmWriter};
 
 pub mod bbox;
@@ -126,11 +126,11 @@ impl OsmCopyTo for OsmXml {
                                 b"id" => id = v.parse().unwrap(),
                                 b"lat" => {
                                     decimicro_lat =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 b"lon" => {
                                     decimicro_lon =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 _ => (),
                             }
@@ -228,11 +228,11 @@ impl OsmCopyTo for OsmXml {
                                 b"id" => id = v.parse().unwrap(),
                                 b"lat" => {
                                     decimicro_lat =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 b"lon" => {
                                     decimicro_lon =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 _ => (),
                             }
@@ -335,11 +335,11 @@ impl OsmUpdateTo for OsmXml {
                                 b"id" => id = v.parse().unwrap(),
                                 b"lat" => {
                                     decimicro_lat =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 b"lon" => {
                                     decimicro_lon =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 _ => (),
                             }
@@ -450,11 +450,11 @@ impl OsmUpdateTo for OsmXml {
                                 b"id" => id = v.parse().unwrap(),
                                 b"lat" => {
                                     decimicro_lat =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 b"lon" => {
                                     decimicro_lon =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 _ => (),
                             }
@@ -524,19 +524,19 @@ impl OsmUpdateTo for OsmXml {
                             match k {
                                 b"minlat" => {
                                     decimicro_minlat =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 b"maxlat" => {
                                     decimicro_maxlat =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 b"minlon" => {
                                     decimicro_minlon =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 b"maxlon" => {
                                     decimicro_maxlon =
-                                        Node::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
                                 }
                                 _ => (),
                             }

@@ -4,7 +4,7 @@ use std::error::Error;
 use std::fs;
 use std::str;
 
-use crate::osm::{BoundingBox, Node};
+use crate::osm::{self, BoundingBox};
 
 pub fn read_multipolygon_from_wkt(
     filename: &str,
@@ -51,8 +51,8 @@ fn read_polygon(lines: &mut str::Lines) -> Result<Polygon<i64>, Box<dyn Error>> 
         let mut c = line.split_whitespace();
         let x: f64 = c.next().unwrap().parse().unwrap();
         let y: f64 = c.next().unwrap().parse().unwrap();
-        let x = Node::coord_to_decimicro(x);
-        let y = Node::coord_to_decimicro(y);
+        let x = osm::coord_to_decimicro(x);
+        let y = osm::coord_to_decimicro(y);
         coords.push(coord!(x: x as i64, y: y as i64))
     }
     let linestring = LineString::new(coords);
