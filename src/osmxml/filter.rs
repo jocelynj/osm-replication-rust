@@ -37,7 +37,7 @@ fn convert_multipolygon_f64_to_i64(poly: &MultiPolygon<f64>) -> MultiPolygon<i64
 }
 
 fn buffer_polygon(mp: &MultiPolygon<i64>) -> MultiPolygon<i64> {
-    let poly_buffered = convert_multipolygon_i64_to_f64(&mp);
+    let poly_buffered = convert_multipolygon_i64_to_f64(mp);
     let geos_poly_buffered: geos::Geometry = (&poly_buffered).try_into().unwrap();
     let geos_poly_buffered = geos_poly_buffered.buffer(0.1, 8).unwrap();
     let geom_buffered: Geometry = (&geos_poly_buffered).try_into().unwrap();
@@ -55,7 +55,7 @@ impl OsmXmlFilter<osmbin::OsmBin> {
         filename: &str,
         dir_osmbin: &str,
         poly_file: &str,
-    ) -> Result<OsmXmlFilter<osmbin::OsmBin>, ()> {
+    ) -> Result<OsmXmlFilter<osmbin::OsmBin>, Box<dyn Error>> {
         let poly = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
         let poly_buffered = buffer_polygon(&poly.clone());
 

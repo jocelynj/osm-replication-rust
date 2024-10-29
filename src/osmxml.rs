@@ -31,7 +31,7 @@ pub struct OsmXml {
 }
 
 impl OsmXml {
-    pub fn new(filename: &str) -> Result<OsmXml, ()> {
+    pub fn new(filename: &str) -> Result<OsmXml, Box<dyn Error>> {
         Ok(OsmXml {
             filename: filename.to_string(),
             xmlwriter: None,
@@ -40,26 +40,24 @@ impl OsmXml {
     }
 
     fn xmlreader(&self, filename: &str) -> Result<Reader<Box<dyn BufRead>>, Box<dyn Error>> {
-        let freader = Box::new(File::open(&filename)?);
-        let reader: Box<dyn BufRead>;
-        if self.filename.ends_with(".gz") {
+        let freader = Box::new(File::open(filename)?);
+        let reader: Box<dyn BufRead> = if self.filename.ends_with(".gz") {
             let breader = BufReader::new(freader);
             let gzreader = GzDecoder::new(breader);
-            reader = Box::new(BufReader::new(gzreader));
+            Box::new(BufReader::new(gzreader))
         } else {
-            reader = Box::new(BufReader::new(freader));
-        }
+            Box::new(BufReader::new(freader))
+        };
         Ok(Reader::from_reader(reader))
     }
     fn xmlwriter(&self, filename: &str) -> Result<Writer<Box<dyn Write>>, Box<dyn Error>> {
-        let fwriter = Box::new(File::create(&filename)?);
-        let writer: Box<dyn Write>;
-        if self.filename.ends_with(".gz") {
+        let fwriter = Box::new(File::create(filename)?);
+        let writer: Box<dyn Write> = if self.filename.ends_with(".gz") {
             let gzwriter = GzEncoder::new(fwriter, Compression::default());
-            writer = Box::new(BufWriter::new(gzwriter));
+            Box::new(BufWriter::new(gzwriter))
         } else {
-            writer = Box::new(BufWriter::new(fwriter));
-        }
+            Box::new(BufWriter::new(fwriter))
+        };
         Ok(Writer::new_with_indent(writer, b' ', 2))
     }
     fn write_action_start(&mut self, action: &Action) {
@@ -176,7 +174,7 @@ impl OsmCopyTo for OsmXml {
                             ..Default::default()
                         });
                     }
-                    k => panic!("Unsupported start element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported start element: {}", str::from_utf8(k)?),
                 },
                 Ok(Event::End(e)) => match e.name().as_ref() {
                     b"osm" => target.write_end()?,
@@ -211,7 +209,7 @@ impl OsmCopyTo for OsmXml {
                             panic!("Expected an initialized relation");
                         }
                     }
-                    k => panic!("Unsupported end element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported end element: {}", str::from_utf8(k)?),
                 },
                 Ok(Event::Empty(e)) => match e.name().as_ref() {
                     b"bounds" => (),
@@ -288,7 +286,7 @@ impl OsmCopyTo for OsmXml {
                         }
                         tags.insert(key, val);
                     }
-                    k => panic!("Unsupported empty element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported empty element: {}", str::from_utf8(k)?),
                 },
                 Ok(Event::Text(_)) => (),
                 Ok(Event::Decl(_)) => (),
@@ -388,7 +386,7 @@ impl OsmUpdateTo for OsmXml {
                     b"create" => curaction = Action::Create(),
                     b"modify" => curaction = Action::Modify(),
                     b"delete" => curaction = Action::Delete(),
-                    k => panic!("Unsupported start element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported start element: {}", str::from_utf8(k)?),
                 },
                 Ok(Event::End(e)) => match e.name().as_ref() {
                     b"osm" => target.write_end()?,
@@ -433,7 +431,7 @@ impl OsmUpdateTo for OsmXml {
                     b"create" => (),
                     b"modify" => (),
                     b"delete" => (),
-                    k => panic!("Unsupported end element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported end element: {}", str::from_utf8(k)?),
                 },
                 Ok(Event::Empty(e)) => match e.name().as_ref() {
                     b"bounds" => (),
@@ -548,7 +546,7 @@ impl OsmUpdateTo for OsmXml {
                             decimicro_maxlon,
                         });
                     }
-                    k => panic!("Unsupported empty element: {}", str::from_utf8(&k)?),
+                    k => panic!("Unsupported empty element: {}", str::from_utf8(k)?),
                 },
                 Ok(Event::Text(_)) => (),
                 Ok(Event::Decl(_)) => (),

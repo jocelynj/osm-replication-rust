@@ -21,16 +21,19 @@ fn expand_bbox(bbox: &mut Option<BoundingBox>, bbox2: &BoundingBox) {
     if let Some(bb) = bbox.as_mut() {
         bb.expand_bbox(bbox2);
     } else {
-        *bbox = Some(bbox2.clone());
+        *bbox = Some(*bbox2);
     }
 }
 
 impl OsmXmlBBox<osmbin::OsmBin> {
-    pub fn new_osmbin(filename: &str, dir_osmbin: &str) -> Result<OsmXmlBBox<osmbin::OsmBin>, ()> {
+    pub fn new_osmbin(
+        filename: &str,
+        dir_osmbin: &str,
+    ) -> Result<OsmXmlBBox<osmbin::OsmBin>, Box<dyn Error>> {
         let reader = osmbin::OsmBin::new(dir_osmbin).unwrap();
         Ok(OsmXmlBBox {
             xmlwriter: OsmXml::new(filename).unwrap(),
-            reader: reader,
+            reader,
             nodes_modified: HashMap::new(),
             ways_modified: HashMap::new(),
             relations_modified: HashMap::new(),
@@ -64,7 +67,7 @@ where
     }
     fn expand_bbox_node(&mut self, bbox: &mut Option<BoundingBox>, node: &Node) {
         self.expand_bbox_node_id(bbox, node.id);
-        self.expand_bbox_node_only(bbox, &node);
+        self.expand_bbox_node_only(bbox, node);
     }
 
     fn expand_bbox_way_only(&mut self, bbox: &mut Option<BoundingBox>, way: &Way) {
@@ -82,7 +85,7 @@ where
     }
     fn expand_bbox_way(&mut self, bbox: &mut Option<BoundingBox>, way: &Way) {
         self.expand_bbox_way_id(bbox, way.id);
-        self.expand_bbox_way_only(bbox, &way);
+        self.expand_bbox_way_only(bbox, way);
     }
 
     fn expand_bbox_relation_only(
@@ -123,7 +126,7 @@ where
     }
     fn expand_bbox_relation(&mut self, bbox: &mut Option<BoundingBox>, relation: &Relation) {
         self.expand_bbox_relation_id(bbox, relation.id, vec![]);
-        self.expand_bbox_relation_only(bbox, &relation, vec![relation.id]);
+        self.expand_bbox_relation_only(bbox, relation, vec![relation.id]);
     }
 }
 
@@ -143,8 +146,8 @@ where
         let mut bbox: Option<BoundingBox> = None;
         self.expand_bbox_way(&mut bbox, way);
         way.bbox = bbox;
-        if bbox.is_some() {
-            self.ways_modified.insert(way.id, bbox.unwrap());
+        if let Some(bb) = bbox {
+            self.ways_modified.insert(way.id, bb);
         }
 
         self.xmlwriter.write_way(way)
@@ -153,8 +156,8 @@ where
         let mut bbox: Option<BoundingBox> = None;
         self.expand_bbox_relation(&mut bbox, relation);
         relation.bbox = bbox;
-        if bbox.is_some() {
-            self.relations_modified.insert(relation.id, bbox.unwrap());
+        if let Some(bb) = bbox {
+            self.relations_modified.insert(relation.id, bb);
         }
 
         self.xmlwriter.write_relation(relation)

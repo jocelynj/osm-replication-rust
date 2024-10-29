@@ -12,7 +12,7 @@ pub struct OsmPbf {
 }
 
 impl OsmPbf {
-    pub fn new(filename: &str) -> Result<OsmPbf, ()> {
+    pub fn new(filename: &str) -> Result<OsmPbf, Box<dyn Error>> {
         Ok(OsmPbf {
             filename: filename.to_string(),
         })
@@ -21,7 +21,7 @@ impl OsmPbf {
 
 impl OsmCopyTo for OsmPbf {
     fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>> {
-        let r = File::open(&Path::new(&self.filename)).unwrap();
+        let r = File::open(Path::new(&self.filename)).unwrap();
         let mut pbf = osmpbfreader::OsmPbfReader::new(r);
 
         target.write_start().unwrap();

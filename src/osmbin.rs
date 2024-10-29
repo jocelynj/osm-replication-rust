@@ -25,12 +25,12 @@ pub const WAY_PTR_SIZE: usize = 5;
 ///
 /// Database used by `OsmBin` is stored in few files:
 /// - `node.crd`: stores latitude/longitude of node, as 2*4 bytes. File is directly indexed by node
-/// id. Not allocated nodes are not written to file, so its size is smaller than `max(node_id) *
-/// 8`, thanks to sparse files.
+///   id. Not allocated nodes are not written to file, so its size is smaller than `max(node_id) *
+///   8`, thanks to sparse files.
 /// - `way.idx`: stores a pointer into `way.data`, as [`WAY_PTR_SIZE`] bytes. File is directly
-/// indexed by way id.
+///   indexed by way id.
 /// - `way.data`: stores a list of nodes id, as `number of nodes` (2-bytes), followed by N node-id
-/// (each using [`NODE_ID_SIZE`] bytes). File is indexed by pointer given by `way.idx`.
+///   (each using [`NODE_ID_SIZE`] bytes). File is indexed by pointer given by `way.idx`.
 pub struct OsmBin {
     dir: String,
     node_crd: bufreaderwriter::BufReaderWriterRand<File>,
@@ -80,10 +80,7 @@ impl OsmBin {
                 let mut s = line.split(";");
                 let pos: u64 = s.next().unwrap().parse().unwrap();
                 let num_nodes: u16 = s.next().unwrap().parse().unwrap();
-                way_free_data
-                    .entry(num_nodes)
-                    .or_insert_with(|| Vec::new())
-                    .push(pos);
+                way_free_data.entry(num_nodes).or_default().push(pos);
             }
         }
 
@@ -107,13 +104,15 @@ impl OsmBin {
             },
         };
 
-        for filename in vec![NODE_CRD, WAY_IDX, WAY_DATA, WAY_FREE] {
+        for filename in [NODE_CRD, WAY_IDX, WAY_DATA, WAY_FREE] {
             let full_filename = Path::new(dir).join(filename);
             let f = File::create_new(full_filename);
             match f {
                 Ok(mut file) => {
-                    if filename == WAY_DATA {
-                        file.write(b"--").expect("Could not write to {filename}");
+                    if filename == WAY_DATA
+                        && file.write(b"--").expect("Could not write to {filename}") != 2
+                    {
+                        panic!("Could not write to {filename}");
                     }
                 }
                 Err(error) => match error.kind() {
@@ -170,7 +169,7 @@ impl OsmBin {
     }
 
     fn to_digits(v: u64) -> Vec<u8> {
-        let mut v = v.clone();
+        let mut v = v;
         let mut digits: Vec<u8> = Vec::with_capacity(10);
         while v > 0 {
             let n = (v % 10) as u8;
@@ -178,10 +177,7 @@ impl OsmBin {
             digits.push(n);
         }
         if digits.len() < 9 {
-            let missing = 9 - digits.len();
-            for _ in 0..missing {
-                digits.push(0);
-            }
+            digits.resize(9, 0);
         }
         digits.reverse();
         digits
@@ -200,7 +196,7 @@ impl Drop for OsmBin {
 
         for (num_nodes, v) in &self.way_free_data {
             for pos in v {
-                write!(way_free, "{};{}\n", pos, num_nodes).unwrap();
+                writeln!(way_free, "{};{}", pos, num_nodes).unwrap();
             }
         }
     }
@@ -308,8 +304,18 @@ impl OsmWriter for OsmBin {
         if self.node_crd.stream_position().unwrap() != node_crd_addr {
             self.node_crd.seek(SeekFrom::Start(node_crd_addr)).unwrap();
         }
-        self.node_crd.write(&lat).unwrap();
-        self.node_crd.write(&lon).unwrap();
+        if self.node_crd.write(&lat).unwrap() != 4 {
+            panic!(
+                "Could not write node latitude for id={} to {}",
+                node.id, NODE_CRD
+            );
+        }
+        if self.node_crd.write(&lon).unwrap() != 4 {
+            panic!(
+                "Could not write node longitude for id={} to {}",
+                node.id, NODE_CRD
+            );
+        }
 
         Ok(())
     }
@@ -333,10 +339,20 @@ impl OsmWriter for OsmBin {
             self.way_data.seek(SeekFrom::Start(way_data_addr))?;
         }
         let num_nodes = Self::int_to_bytes2(num_nodes);
-        self.way_data.write(&num_nodes)?;
+        if self.way_data.write(&num_nodes).unwrap() != 2 {
+            panic!(
+                "Could not write num nodes for way id={} to {}",
+                way.id, WAY_DATA
+            );
+        }
         for n in &way.nodes {
             let node = Self::int_to_bytes5(*n);
-            self.way_data.write(&node)?;
+            if self.way_data.write(&node).unwrap() != 5 {
+                panic!(
+                    "Could not write node id for way id={} to {}",
+                    way.id, WAY_DATA
+                );
+            }
         }
 
         // Try not to seek if not necessary, as seeking flushes write buffer
@@ -344,7 +360,9 @@ impl OsmWriter for OsmBin {
             self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
         }
         let buffer = Self::int_to_bytes5(way_data_addr);
-        self.way_idx.write(&buffer)?;
+        if self.way_idx.write(&buffer).unwrap() != WAY_PTR_SIZE {
+            panic!("Could not write idx for way id={} to {}", way.id, WAY_IDX);
+        }
 
         self.way_idx_size = cmp::max(self.way_idx_size, self.way_idx.stream_position().unwrap());
         self.way_data_size = cmp::max(self.way_data_size, self.way_data.stream_position().unwrap());
@@ -381,7 +399,9 @@ impl OsmUpdate for OsmBin {
         if *action == Action::Delete() {
             let empty: Vec<u8> = vec![0; 8];
             self.node_crd.seek(SeekFrom::Start(node.id * 8))?;
-            self.node_crd.write(&empty)?;
+            if self.node_crd.write(&empty).unwrap() != 8 {
+                panic!("Could not clear node id={} to {}", node.id, NODE_CRD);
+            }
         } else {
             self.write_node(node)?;
         }
@@ -412,18 +432,22 @@ impl OsmUpdate for OsmBin {
 
             self.way_free_data
                 .entry(num_nodes)
-                .or_insert_with(|| Vec::new())
+                .or_default()
                 .push(way_data_addr);
 
             self.way_data
                 .seek(SeekFrom::Start(way_data_addr))
                 .expect("Could not seek");
             let empty = vec![0; 2];
-            self.way_data.write(&empty)?;
+            if self.way_data.write(&empty).unwrap() != 2 {
+                panic!("Could not clear way id={} to {}", way.id, WAY_DATA);
+            }
 
             let buffer = vec![0; WAY_PTR_SIZE];
             self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
-            self.way_idx.write(&buffer)?;
+            if self.way_idx.write(&buffer).unwrap() != WAY_PTR_SIZE {
+                panic!("Could not clear way id={} to {}", way.id, WAY_IDX);
+            }
         } else {
             self.write_way(way)?;
         }
@@ -673,5 +697,19 @@ mod tests {
     #[should_panic]
     fn int_to_bytes5_too_big() {
         OsmBin::int_to_bytes5(0x99_12_23_45_67_89);
+    }
+
+    #[test]
+    fn to_digits() {
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0, 0], OsmBin::to_digits(0));
+        assert_eq!(vec![0, 0, 0, 0, 0, 1, 2, 3, 4], OsmBin::to_digits(1234));
+        assert_eq!(
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 9],
+            OsmBin::to_digits(123456789)
+        );
+        assert_eq!(
+            vec![7, 8, 9, 0, 0, 0, 0, 0, 0],
+            OsmBin::to_digits(789000000)
+        );
     }
 }
