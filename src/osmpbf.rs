@@ -1,5 +1,4 @@
 use osmpbfreader;
-use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::path::Path;
@@ -24,7 +23,7 @@ impl OsmCopyTo for OsmPbf {
         let r = File::open(Path::new(&self.filename)).unwrap();
         let mut pbf = osmpbfreader::OsmPbfReader::new(r);
 
-        target.write_start().unwrap();
+        target.write_start(false).unwrap();
 
         for obj in pbf.iter() {
             let obj = obj?;
@@ -76,9 +75,9 @@ impl OsmCopyTo for OsmPbf {
                             role: r.role.to_string(),
                         })
                     }
-                    let mut tags: HashMap<String, String> = HashMap::new();
+                    let mut tags: Vec<(String, String)> = Vec::new();
                     for (k, v) in relation.tags.into_inner() {
-                        tags.insert(k.to_string(), v.to_string());
+                        tags.push((k.to_string(), v.to_string()));
                     }
                     target
                         .write_relation(&mut Relation {
@@ -92,7 +91,7 @@ impl OsmCopyTo for OsmPbf {
             }
         }
 
-        target.write_end().unwrap();
+        target.write_end(false).unwrap();
 
         Ok(())
     }

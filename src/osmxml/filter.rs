@@ -149,11 +149,11 @@ where
     fn write_relation(&mut self, relation: &mut Relation) -> Result<(), io::Error> {
         self.xmlwriter.write_relation(relation)
     }
-    fn write_start(&mut self) -> Result<(), Box<dyn Error>> {
-        self.xmlwriter.write_start()
+    fn write_start(&mut self, change: bool) -> Result<(), Box<dyn Error>> {
+        self.xmlwriter.write_start(change)
     }
-    fn write_end(&mut self) -> Result<(), Box<dyn Error>> {
-        self.xmlwriter.write_end()
+    fn write_end(&mut self, change: bool) -> Result<(), Box<dyn Error>> {
+        self.xmlwriter.write_end(change)
     }
 }
 impl<T> OsmUpdate for OsmXmlFilter<T>
@@ -275,8 +275,7 @@ mod tests {
                         role: String::from("subarea"),
                         type_: String::from("relation"),
                     }],
-                    tags: None,
-                    bbox: None,
+                    ..Default::default()
                 })
             } else if id == 7801 {
                 Some(Relation {
@@ -286,8 +285,7 @@ mod tests {
                         role: String::from("subarea"),
                         type_: String::from("relation"),
                     }],
-                    tags: None,
-                    bbox: None,
+                    ..Default::default()
                 })
             } else {
                 None

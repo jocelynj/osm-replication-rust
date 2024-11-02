@@ -583,7 +583,7 @@ mod tests {
         let exp_rel = Relation { id: 529891,
         members: vec![Member{ref_: 670634766, role: String::from(""), type_: String::from("node")},
                       Member{ref_: 670634768, role: String::from(""), type_: String::from("node")}],
-            tags: Some(HashMap::from([
+            tags: Some(Vec::from([
                                 (String::from("name"), String::from("Saint-Barthélemy III")),
                                 (String::from("note"), String::from("la Barriere des Quatre Vents")),
                                 (String::from("ref"), String::from("9712303")),
@@ -635,7 +635,7 @@ mod tests {
                     role: String::from("outer"),
                 },
             ],
-            tags: Some(HashMap::from([
+            tags: Some(Vec::from([
                 (String::from("admin_level"), String::from("8")),
                 (String::from("boundary"), String::from("administrative")),
                 (String::from("local_name"), String::from("Statia")),

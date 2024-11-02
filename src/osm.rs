@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use std::cmp::{max, min};
-use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::io;
+use std::num::NonZeroU64;
 
 use crate::osmpbf;
 use crate::osmxml;
@@ -18,7 +19,17 @@ pub struct Node {
     /// Longitude in decimicro degrees (10⁻⁷ degrees).
     pub decimicro_lon: i32,
     /// Tags
-    pub tags: Option<HashMap<String, String>>,
+    pub tags: Option<Vec<(String, String)>>,
+    /// Version
+    pub version: Option<NonZeroU64>,
+    /// Timestamp
+    pub timestamp: Option<String>,
+    /// User id
+    pub uid: Option<NonZeroU64>,
+    /// User name
+    pub user: Option<String>,
+    /// Changeset id
+    pub changeset: Option<NonZeroU64>,
     /// Bounding-box
     pub bbox: Option<BoundingBox>,
 }
@@ -41,7 +52,17 @@ pub struct Way {
     /// List of ordered nodes
     pub nodes: Vec<u64>,
     /// Tags
-    pub tags: Option<HashMap<String, String>>,
+    pub tags: Option<Vec<(String, String)>>,
+    /// Version
+    pub version: Option<NonZeroU64>,
+    /// Timestamp
+    pub timestamp: Option<String>,
+    /// User id
+    pub uid: Option<NonZeroU64>,
+    /// User name
+    pub user: Option<String>,
+    /// Changeset id
+    pub changeset: Option<NonZeroU64>,
     /// Bounding-box
     pub bbox: Option<BoundingBox>,
 }
@@ -60,6 +81,7 @@ pub struct Member {
 }
 
 /// Relation
+#[serde_as]
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct Relation {
     /// Relation id
@@ -69,8 +91,25 @@ pub struct Relation {
     pub members: Vec<Member>,
     /// Tags
     #[serde(rename = "tag")]
-    pub tags: Option<HashMap<String, String>>,
+    #[serde_as(as = "Option<serde_with::Map<_, _>>")]
+    pub tags: Option<Vec<(String, String)>>,
+    /// Version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<NonZeroU64>,
+    /// Timestamp
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<String>,
+    /// User id
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uid: Option<NonZeroU64>,
+    /// User name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
+    /// Changeset id
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub changeset: Option<NonZeroU64>,
     /// Bounding-box
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bbox: Option<BoundingBox>,
 }
 
@@ -139,10 +178,10 @@ pub trait OsmWriter {
     fn write_way(&mut self, way: &mut Way) -> Result<(), io::Error>;
     fn write_relation(&mut self, relation: &mut Relation) -> Result<(), io::Error>;
 
-    fn write_start(&mut self) -> Result<(), Box<dyn Error>> {
+    fn write_start(&mut self, _change: bool) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
-    fn write_end(&mut self) -> Result<(), Box<dyn Error>> {
+    fn write_end(&mut self, _change: bool) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 
