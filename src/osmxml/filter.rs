@@ -75,6 +75,25 @@ impl<T> OsmXmlFilter<T>
 where
     T: OsmReader,
 {
+    pub fn new_reader(
+        filename: &str,
+        reader: T,
+        poly_file: &str,
+    ) -> Result<OsmXmlFilter<T>, Box<dyn Error>> {
+        let poly = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
+        let poly_buffered = buffer_polygon(&poly.clone());
+
+        Ok(OsmXmlFilter {
+            xmlwriter: OsmXml::new(filename).unwrap(),
+            reader,
+            poly,
+            poly_buffered,
+            nodes_seen_in_poly: HashSet::new(),
+            ways_seen_in_poly: HashSet::new(),
+            relations_seen_in_poly: HashSet::new(),
+        })
+    }
+
     fn node_in_poly(&mut self, id: u64) -> bool {
         if self.nodes_seen_in_poly.contains(&id) {
             return true;
