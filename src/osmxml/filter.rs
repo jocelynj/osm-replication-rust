@@ -4,11 +4,18 @@ use std::collections::HashSet;
 use std::error::Error;
 use std::io;
 
-use crate::osm::{self, Action, Node, Relation, Way};
+use crate::osm::{self, Action, Member, Node, Relation, Way};
 use crate::osm::{OsmReader, OsmUpdate, OsmWriter};
 use crate::osmbin;
 use crate::osmgeom;
 use crate::osmxml::OsmXml;
+
+struct PolyInfo {
+    poly: MultiPolygon<i64>,
+    nodes_seen_in_poly: HashSet<u64>,
+    ways_seen_in_poly: HashSet<u64>,
+    relations_seen_in_poly: HashSet<u64>,
+}
 
 pub struct OsmXmlFilter<T>
 where
@@ -16,11 +23,8 @@ where
 {
     xmlwriter: OsmXml,
     reader: T,
-    poly: MultiPolygon<i64>,
-    poly_buffered: MultiPolygon<i64>,
-    nodes_seen_in_poly: HashSet<u64>,
-    ways_seen_in_poly: HashSet<u64>,
-    relations_seen_in_poly: HashSet<u64>,
+    poly: PolyInfo,
+    poly_buffered: PolyInfo,
 }
 
 fn convert_multipolygon_i64_to_f64(poly: &MultiPolygon<i64>) -> MultiPolygon<f64> {
@@ -62,11 +66,18 @@ impl OsmXmlFilter<osmbin::OsmBin> {
         Ok(OsmXmlFilter {
             xmlwriter: OsmXml::new(filename).unwrap(),
             reader: osmbin::OsmBin::new(dir_osmbin).unwrap(),
-            poly,
-            poly_buffered,
-            nodes_seen_in_poly: HashSet::new(),
-            ways_seen_in_poly: HashSet::new(),
-            relations_seen_in_poly: HashSet::new(),
+            poly: PolyInfo {
+                poly,
+                nodes_seen_in_poly: HashSet::new(),
+                ways_seen_in_poly: HashSet::new(),
+                relations_seen_in_poly: HashSet::new(),
+            },
+            poly_buffered: PolyInfo {
+                poly: poly_buffered,
+                nodes_seen_in_poly: HashSet::new(),
+                ways_seen_in_poly: HashSet::new(),
+                relations_seen_in_poly: HashSet::new(),
+            },
         })
     }
 }
@@ -86,19 +97,28 @@ where
         Ok(OsmXmlFilter {
             xmlwriter: OsmXml::new(filename).unwrap(),
             reader,
-            poly,
-            poly_buffered,
-            nodes_seen_in_poly: HashSet::new(),
-            ways_seen_in_poly: HashSet::new(),
-            relations_seen_in_poly: HashSet::new(),
+            poly: PolyInfo {
+                poly,
+                nodes_seen_in_poly: HashSet::new(),
+                ways_seen_in_poly: HashSet::new(),
+                relations_seen_in_poly: HashSet::new(),
+            },
+            poly_buffered: PolyInfo {
+                poly: poly_buffered,
+                nodes_seen_in_poly: HashSet::new(),
+                ways_seen_in_poly: HashSet::new(),
+                relations_seen_in_poly: HashSet::new(),
+            },
         })
     }
+}
 
-    fn node_in_poly(&mut self, id: u64) -> bool {
+impl PolyInfo {
+    fn node_in_poly<T: OsmReader>(&mut self, reader: &mut T, id: u64) -> bool {
         if self.nodes_seen_in_poly.contains(&id) {
             return true;
         }
-        let node = self.reader.read_node(id);
+        let node = reader.read_node(id);
         if let Some(node) = node {
             let point = point!(x: node.decimicro_lon as i64, y: node.decimicro_lat as i64);
             if point.intersects(&self.poly) {
@@ -108,47 +128,70 @@ where
         }
         false
     }
-    fn way_in_poly(&mut self, id: u64) -> bool {
-        if self.ways_seen_in_poly.contains(&id) {
-            return true;
-        }
-        let way = self.reader.read_way(id);
-        if let Some(way) = way {
-            for n in way.nodes {
-                if self.node_in_poly(n) {
-                    return true;
-                }
+    fn nodes_in_poly<T: OsmReader>(&mut self, reader: &mut T, nodes: &Vec<u64>) -> bool {
+        for n in nodes {
+            if self.node_in_poly(reader, *n) {
+                return true;
             }
         }
         false
     }
-    fn relation_in_poly(&mut self, id: u64, prev_relations: Vec<u64>) -> bool {
+    fn way_in_poly<T: OsmReader>(&mut self, reader: &mut T, id: u64) -> bool {
+        if self.ways_seen_in_poly.contains(&id) {
+            return true;
+        }
+        let way = reader.read_way(id);
+        if let Some(way) = way {
+            if self.nodes_in_poly(reader, &way.nodes) {
+                self.ways_seen_in_poly.insert(id);
+                return true;
+            }
+        }
+        false
+    }
+    fn members_in_poly<T: OsmReader>(
+        &mut self,
+        reader: &mut T,
+        members: &Vec<Member>,
+        prev_relations: Vec<u64>,
+    ) -> bool {
+        for m in members {
+            let is_inside = match m.type_.as_str() {
+                "node" => self.node_in_poly(reader, m.ref_),
+                "way" => self.way_in_poly(reader, m.ref_),
+                "relation" => {
+                    if prev_relations.contains(&m.ref_) {
+                        println!(
+                            "Detected relation recursion on id={} - {:?}",
+                            m.ref_, prev_relations
+                        );
+                    }
+                    let mut prev_relations = prev_relations.clone();
+                    prev_relations.push(m.ref_);
+                    self.relation_in_poly(reader, m.ref_, prev_relations)
+                }
+                _ => panic!("Unsupported relation member: {:?}", m),
+            };
+            if is_inside {
+                return true;
+            }
+        }
+        false
+    }
+    fn relation_in_poly<T: OsmReader>(
+        &mut self,
+        reader: &mut T,
+        id: u64,
+        prev_relations: Vec<u64>,
+    ) -> bool {
         if self.relations_seen_in_poly.contains(&id) {
             return true;
         }
-        if prev_relations.contains(&id) {
-            println!(
-                "Detected relation recursion on id={} - {:?}",
-                id, prev_relations
-            );
-            return false;
-        }
-        let relation = self.reader.read_relation(id);
+        let relation = reader.read_relation(id);
         if let Some(relation) = relation {
-            for m in &relation.members {
-                let is_inside = match m.type_.as_str() {
-                    "node" => self.node_in_poly(m.ref_),
-                    "way" => self.way_in_poly(m.ref_),
-                    "relation" => {
-                        let mut prev_relations = prev_relations.clone();
-                        prev_relations.push(id);
-                        self.relation_in_poly(m.ref_, prev_relations)
-                    }
-                    _ => panic!("Unsupported relation member: {:?}", m),
-                };
-                if is_inside {
-                    return true;
-                }
+            if self.members_in_poly(reader, &relation.members, prev_relations) {
+                self.relations_seen_in_poly.insert(id);
+                return true;
             }
         }
         false
@@ -185,37 +228,45 @@ where
                 .bbox
                 .expect("Input OSC XML file must contain bbox tags"),
         );
-        if bbox.intersects(&self.poly_buffered) {
+        if bbox.intersects(&self.poly_buffered.poly) {
             let point = point!(x: node.decimicro_lon as i64, y: node.decimicro_lat as i64);
-            if point.intersects(&self.poly) {
-                self.nodes_seen_in_poly.insert(node.id);
+            if point.intersects(&self.poly.poly) {
+                self.poly.nodes_seen_in_poly.insert(node.id);
+                self.poly_buffered.nodes_seen_in_poly.insert(node.id);
                 self.xmlwriter.write_action_start(action);
-            } else {
+                self.write_node(node)?;
+            } else if point.intersects(&self.poly_buffered.poly)
+                || self.poly_buffered.node_in_poly(&mut self.reader, node.id)
+            {
+                self.poly_buffered.nodes_seen_in_poly.insert(node.id);
                 self.xmlwriter.write_action_start(&Action::Delete());
+                self.write_node(node)?;
             }
-            self.write_node(node)?;
         }
         Ok(())
     }
     fn update_way(&mut self, way: &mut Way, action: &Action) -> Result<(), io::Error> {
-        let bbox = osmgeom::bounding_box_to_polygon(
-            &way.bbox.expect("Input OSC XML file must contain bbox tags"),
-        );
-        if bbox.intersects(&self.poly_buffered) {
-            let mut is_inside = false;
-            for nd in &way.nodes {
-                if self.node_in_poly(*nd) {
-                    is_inside = true;
-                    break;
-                }
-            }
-            if is_inside {
-                self.ways_seen_in_poly.insert(way.id);
+        let inside_bbox = if let Some(bbox) = &way.bbox {
+            let bbox = osmgeom::bounding_box_to_polygon(bbox);
+            bbox.intersects(&self.poly_buffered.poly)
+        } else {
+            false
+        };
+        if inside_bbox {
+            if self.poly.nodes_in_poly(&mut self.reader, &way.nodes) {
+                self.poly.ways_seen_in_poly.insert(way.id);
+                self.poly_buffered.ways_seen_in_poly.insert(way.id);
                 self.xmlwriter.write_action_start(action);
-            } else {
+                self.write_way(way)?;
+            } else if self
+                .poly_buffered
+                .nodes_in_poly(&mut self.reader, &way.nodes)
+                || self.poly_buffered.way_in_poly(&mut self.reader, way.id)
+            {
+                self.poly_buffered.ways_seen_in_poly.insert(way.id);
                 self.xmlwriter.write_action_start(&Action::Delete());
+                self.write_way(way)?;
             }
-            self.write_way(way)?;
         }
         Ok(())
     }
@@ -224,37 +275,38 @@ where
         relation: &mut Relation,
         action: &Action,
     ) -> Result<(), io::Error> {
-        let mut inside_bbox;
-
-        if let Some(bbox) = &relation.bbox {
-            inside_bbox = false;
+        let inside_bbox = if let Some(bbox) = &relation.bbox {
             let bbox = osmgeom::bounding_box_to_polygon(bbox);
-            if bbox.intersects(&self.poly_buffered) {
-                inside_bbox = true;
-            }
+            bbox.intersects(&self.poly_buffered.poly)
         } else {
-            inside_bbox = true;
-        }
+            false
+        };
         if inside_bbox {
-            let mut is_inside = false;
-            for m in &relation.members {
-                is_inside = match m.type_.as_str() {
-                    "node" => self.node_in_poly(m.ref_),
-                    "way" => self.way_in_poly(m.ref_),
-                    "relation" => self.relation_in_poly(m.ref_, vec![]),
-                    _ => panic!("Unsupported relation member: {:?}", m),
-                };
-                if is_inside {
-                    break;
-                }
-            }
-            if is_inside {
-                self.relations_seen_in_poly.insert(relation.id);
+            if self
+                .poly
+                .members_in_poly(&mut self.reader, &relation.members, vec![])
+            {
+                self.poly.relations_seen_in_poly.insert(relation.id);
+                self.poly_buffered
+                    .relations_seen_in_poly
+                    .insert(relation.id);
                 self.xmlwriter.write_action_start(action);
-            } else {
+                self.write_relation(relation)?;
+            } else if self.poly_buffered.members_in_poly(
+                &mut self.reader,
+                &relation.members,
+                vec![],
+            ) || self.poly_buffered.relation_in_poly(
+                &mut self.reader,
+                relation.id,
+                vec![],
+            ) {
+                self.poly_buffered
+                    .relations_seen_in_poly
+                    .insert(relation.id);
                 self.xmlwriter.write_action_start(&Action::Delete());
+                self.write_relation(relation)?;
             }
-            self.write_relation(relation)?;
         }
         Ok(())
     }
@@ -322,11 +374,18 @@ mod tests {
         OsmXmlFilter {
             xmlwriter: OsmXml::new(filename).unwrap(),
             reader: reader,
-            poly,
-            poly_buffered,
-            nodes_seen_in_poly: HashSet::new(),
-            ways_seen_in_poly: HashSet::new(),
-            relations_seen_in_poly: HashSet::new(),
+            poly: PolyInfo {
+                poly,
+                nodes_seen_in_poly: HashSet::new(),
+                ways_seen_in_poly: HashSet::new(),
+                relations_seen_in_poly: HashSet::new(),
+            },
+            poly_buffered: PolyInfo {
+                poly: poly_buffered,
+                nodes_seen_in_poly: HashSet::new(),
+                ways_seen_in_poly: HashSet::new(),
+                relations_seen_in_poly: HashSet::new(),
+            },
         }
     }
 
@@ -341,8 +400,8 @@ mod tests {
         let mut osmxmlfilter = new_mockreader(dest.path().to_str().unwrap(), reader, &poly);
         osmxmlfilter.update(&src).unwrap();
 
-        assert_eq!(24, osmxmlfilter.reader.num_read_nodes);
-        assert_eq!(2, osmxmlfilter.reader.num_read_ways);
-        assert_eq!(4, osmxmlfilter.reader.num_read_relations);
+        assert_eq!(48, osmxmlfilter.reader.num_read_nodes);
+        assert_eq!(7, osmxmlfilter.reader.num_read_ways);
+        assert_eq!(2, osmxmlfilter.reader.num_read_relations);
     }
 }
