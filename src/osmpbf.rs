@@ -25,7 +25,7 @@ impl OsmCopyTo for OsmPbf {
 
         target.write_start(false).unwrap();
 
-        for obj in pbf.iter() {
+        for obj in pbf.par_iter() {
             let obj = obj?;
             match obj {
                 osmpbfreader::OsmObj::Node(node) => {
