@@ -717,7 +717,7 @@ impl OsmWriter for OsmXml {
             elem = elem.with_attribute(("uid", uid.to_string().as_str()));
         }
         if let Some(user) = &node.user {
-            elem = elem.with_attribute(("user", user.to_string().as_str()));
+            elem = elem.with_attribute(("user".as_bytes(), user.to_string().as_bytes()));
         }
         if let Some(changeset) = &node.changeset {
             elem = elem.with_attribute(("changeset", changeset.to_string().as_str()));
@@ -734,8 +734,8 @@ impl OsmWriter for OsmXml {
                     for (k, v) in node.tags.as_ref().unwrap() {
                         writer
                             .create_element("tag")
-                            .with_attribute(("k", k.as_str()))
-                            .with_attribute(("v", v.as_str()))
+                            .with_attribute(("k".as_bytes(), k.as_bytes()))
+                            .with_attribute(("v".as_bytes(), v.as_bytes()))
                             .write_empty()
                             .unwrap();
                     }
@@ -775,7 +775,7 @@ impl OsmWriter for OsmXml {
             elem = elem.with_attribute(("uid", uid.to_string().as_str()));
         }
         if let Some(user) = &way.user {
-            elem = elem.with_attribute(("user", user.to_string().as_str()));
+            elem = elem.with_attribute(("user".as_bytes(), user.to_string().as_bytes()));
         }
         if let Some(changeset) = &way.changeset {
             elem = elem.with_attribute(("changeset", changeset.to_string().as_str()));
@@ -794,8 +794,8 @@ impl OsmWriter for OsmXml {
                 for (k, v) in way.tags.as_ref().unwrap() {
                     writer
                         .create_element("tag")
-                        .with_attribute(("k", k.as_str()))
-                        .with_attribute(("v", v.as_str()))
+                        .with_attribute(("k".as_bytes(), k.as_bytes()))
+                        .with_attribute(("v".as_bytes(), v.as_bytes()))
                         .write_empty()
                         .unwrap();
                 }
@@ -834,7 +834,7 @@ impl OsmWriter for OsmXml {
             elem = elem.with_attribute(("uid", uid.to_string().as_str()));
         }
         if let Some(user) = &relation.user {
-            elem = elem.with_attribute(("user", user.to_string().as_str()));
+            elem = elem.with_attribute(("user".as_bytes(), user.to_string().as_bytes()));
         }
         if let Some(changeset) = &relation.changeset {
             elem = elem.with_attribute(("changeset", changeset.to_string().as_str()));
@@ -854,8 +854,8 @@ impl OsmWriter for OsmXml {
                 for (k, v) in relation.tags.as_ref().unwrap() {
                     writer
                         .create_element("tag")
-                        .with_attribute(("k", k.as_str()))
-                        .with_attribute(("v", v.as_str()))
+                        .with_attribute(("k".as_bytes(), k.as_bytes()))
+                        .with_attribute(("v".as_bytes(), v.as_bytes()))
                         .write_empty()
                         .unwrap();
                 }
