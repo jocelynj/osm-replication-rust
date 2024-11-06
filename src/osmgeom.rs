@@ -73,7 +73,7 @@ pub fn bounding_box_to_polygon(bbox: &BoundingBox) -> Polygon<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use geo::{polygon, CoordsIter};
+    use geo::{point, polygon, CoordsIter, Intersects};
 
     #[test]
     fn read_africa() {
@@ -133,5 +133,88 @@ mod tests {
         assert_eq!(24, res.1 .0.get(6).unwrap().exterior().coords_count());
         assert_eq!(33, res.1 .0.get(7).unwrap().exterior().coords_count());
         assert_eq!(29, res.1 .0.get(8).unwrap().exterior().coords_count());
+    }
+    #[test]
+    fn intersects_canarias() {
+        let res = read_multipolygon_from_wkt("tests/resources/canarias.poly").unwrap();
+        let polygon = res.1;
+        assert_eq!(false, point!(x: 0 as i64, y: 0 as i64).intersects(&polygon));
+        assert_eq!(
+            true,
+            point!(x: -166015000 as i64, y: 281876000 as i64).intersects(&polygon)
+        );
+
+        // bounding-box outside polygon
+
+        let p = bounding_box_to_polygon(&BoundingBox {
+            decimicro_minlat: -266015000,
+            decimicro_maxlat: 0,
+            decimicro_minlon: -366015000,
+            decimicro_maxlon: -266015000,
+        });
+        assert_eq!(false, p.intersects(&polygon));
+
+        // bounding-box consisting of a single point
+        let p = bounding_box_to_polygon(&BoundingBox {
+            decimicro_minlat: 0,
+            decimicro_maxlat: 0,
+            decimicro_minlon: 0,
+            decimicro_maxlon: 0,
+        });
+        assert_eq!(false, p.intersects(&polygon));
+
+        // bounding-box consisting of a single line
+        let p = bounding_box_to_polygon(&BoundingBox {
+            decimicro_minlat: 0,
+            decimicro_maxlat: 0,
+            decimicro_minlon: -166015200,
+            decimicro_maxlon: -166015100,
+        });
+        assert_eq!(false, p.intersects(&polygon));
+
+        // bounding-box inside polygon
+
+        let p = bounding_box_to_polygon(&BoundingBox {
+            decimicro_minlat: 0,
+            decimicro_maxlat: 281876000,
+            decimicro_minlon: -166015000,
+            decimicro_maxlon: 0,
+        });
+        assert_eq!(true, p.intersects(&polygon));
+
+        let p = bounding_box_to_polygon(&BoundingBox {
+            decimicro_minlat: 281875000,
+            decimicro_maxlat: 281876000,
+            decimicro_minlon: -166015200,
+            decimicro_maxlon: -166015100,
+        });
+        assert_eq!(true, p.intersects(&polygon));
+
+        // bounding-box consisting of a single point
+        let p = bounding_box_to_polygon(&BoundingBox {
+            decimicro_minlat: 281876000,
+            decimicro_maxlat: 281876000,
+            decimicro_minlon: -166015100,
+            decimicro_maxlon: -166015100,
+        });
+        assert_eq!(true, p.intersects(&polygon));
+
+        // bounding-box consisting of a single line
+        let p = bounding_box_to_polygon(&BoundingBox {
+            decimicro_minlat: 281875000,
+            decimicro_maxlat: 281876000,
+            decimicro_minlon: -166015100,
+            decimicro_maxlon: -166015100,
+        });
+        assert_eq!(true, p.intersects(&polygon));
+
+        // bounding-box consisting of a single line
+        let p = bounding_box_to_polygon(&BoundingBox {
+            decimicro_minlat: 281876000,
+            decimicro_maxlat: 281876000,
+            decimicro_minlon: -166015200,
+            decimicro_maxlon: -166015100,
+        });
+        assert_eq!(true, p.intersects(&polygon));
     }
 }
