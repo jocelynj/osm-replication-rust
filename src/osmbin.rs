@@ -154,7 +154,7 @@ impl OsmBin {
 
     fn bytes4_to_coord(d: &[u8; 4]) -> i32 {
         // TODO: Store directly i32 instead of converting to a positive number
-        (Self::bytes4_to_int(d) as i32) - 1800000000
+        ((Self::bytes4_to_int(d) as i64) - 1800000000) as i32
     }
     fn coord_to_bytes4(d: i32) -> [u8; 4] {
         // TODO: Store directly i32 instead of converting to a positive number
@@ -697,6 +697,25 @@ mod tests {
     #[should_panic]
     fn int_to_bytes5_too_big() {
         OsmBin::int_to_bytes5(0x99_12_23_45_67_89);
+    }
+
+    #[test]
+    fn coord() {
+        for n in (-1800000000_i32..1800000000_i32).step_by(100000) {
+            assert_eq!(n, OsmBin::bytes4_to_coord(&OsmBin::coord_to_bytes4(n)));
+            assert_eq!(
+                n + 13198,
+                OsmBin::bytes4_to_coord(&OsmBin::coord_to_bytes4(n + 13198))
+            );
+            assert_eq!(
+                n + 401,
+                OsmBin::bytes4_to_coord(&OsmBin::coord_to_bytes4(n + 401))
+            );
+            assert_eq!(
+                n + 50014,
+                OsmBin::bytes4_to_coord(&OsmBin::coord_to_bytes4(n + 50014))
+            );
+        }
     }
 
     #[test]
