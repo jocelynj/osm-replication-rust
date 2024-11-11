@@ -223,21 +223,16 @@ where
     T: OsmReader,
 {
     fn update_node(&mut self, node: &mut Node, action: &Action) -> Result<(), io::Error> {
-        let bbox = osmgeom::bounding_box_to_polygon(
-            &node
-                .bbox
-                .expect("Input OSC XML file must contain bbox tags"),
-        );
-        if bbox.intersects(&self.poly_buffered.poly) {
-            let point = point!(x: node.decimicro_lon as i64, y: node.decimicro_lat as i64);
+        let point = point!(x: node.decimicro_lon as i64, y: node.decimicro_lat as i64);
+        let in_poly_buffered = point.intersects(&self.poly_buffered.poly)
+            || self.poly_buffered.node_in_poly(&mut self.reader, node.id);
+        if in_poly_buffered {
             if point.intersects(&self.poly.poly) {
                 self.poly.nodes_seen_in_poly.insert(node.id);
                 self.poly_buffered.nodes_seen_in_poly.insert(node.id);
                 self.xmlwriter.write_action_start(action);
                 self.write_node(node)?;
-            } else if point.intersects(&self.poly_buffered.poly)
-                || self.poly_buffered.node_in_poly(&mut self.reader, node.id)
-            {
+            } else {
                 self.poly_buffered.nodes_seen_in_poly.insert(node.id);
                 self.xmlwriter.write_action_start(&Action::Delete());
                 self.write_node(node)?;
@@ -400,7 +395,7 @@ mod tests {
         let mut osmxmlfilter = new_mockreader(dest.path().to_str().unwrap(), reader, &poly);
         osmxmlfilter.update(&src).unwrap();
 
-        assert_eq!(48, osmxmlfilter.reader.num_read_nodes);
+        assert_eq!(50, osmxmlfilter.reader.num_read_nodes);
         assert_eq!(7, osmxmlfilter.reader.num_read_ways);
         assert_eq!(2, osmxmlfilter.reader.num_read_relations);
     }

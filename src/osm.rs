@@ -30,8 +30,6 @@ pub struct Node {
     pub user: Option<String>,
     /// Changeset id
     pub changeset: Option<NonZeroU64>,
-    /// Bounding-box
-    pub bbox: Option<BoundingBox>,
 }
 impl Node {
     /// Returns the latitude of the node in degrees.

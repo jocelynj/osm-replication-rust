@@ -154,7 +154,6 @@ impl OsmCopyTo for OsmXml {
                             uid,
                             user,
                             changeset,
-                            ..Default::default()
                         });
                     }
                     b"way" => {
@@ -310,7 +309,6 @@ impl OsmCopyTo for OsmXml {
                             uid,
                             user,
                             changeset,
-                            ..Default::default()
                         })?;
                     }
                     b"nd" => {
@@ -433,7 +431,6 @@ impl OsmUpdateTo for OsmXml {
                             uid,
                             user,
                             changeset,
-                            ..Default::default()
                         });
                     }
                     b"way" => {
@@ -519,7 +516,6 @@ impl OsmUpdateTo for OsmXml {
                     b"node" => {
                         if let CurObj::Node(ref mut node) = curobj {
                             node.tags = Some(tags);
-                            node.bbox = bbox;
                             tags = Vec::new();
                             bbox = None;
                             target.update_node(node, &curaction)?;
@@ -602,7 +598,6 @@ impl OsmUpdateTo for OsmXml {
                             uid,
                             user,
                             changeset,
-                            ..Default::default()
                         };
                         target.update_node(&mut node, &curaction)?;
                     }
@@ -726,7 +721,7 @@ impl OsmWriter for OsmXml {
             .with_attribute(("lat", node.lat().to_string().as_str()))
             .with_attribute(("lon", node.lon().to_string().as_str()));
 
-        if node.tags.is_none() && node.bbox.is_none() {
+        if node.tags.is_none() {
             elem.write_empty().unwrap();
         } else {
             elem.write_inner_content(|writer| {
@@ -739,16 +734,6 @@ impl OsmWriter for OsmXml {
                             .write_empty()
                             .unwrap();
                     }
-                }
-                if let Some(bb) = &node.bbox {
-                    writer
-                        .create_element("bbox")
-                        .with_attribute(("minlat", bb.minlat().to_string().as_str()))
-                        .with_attribute(("maxlat", bb.maxlat().to_string().as_str()))
-                        .with_attribute(("minlon", bb.minlon().to_string().as_str()))
-                        .with_attribute(("maxlon", bb.maxlon().to_string().as_str()))
-                        .write_empty()
-                        .unwrap();
                 }
                 Ok::<(), quick_xml::Error>(())
             })

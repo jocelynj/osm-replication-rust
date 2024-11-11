@@ -137,7 +137,6 @@ where
     fn write_node(&mut self, node: &mut Node) -> Result<(), io::Error> {
         let mut bbox: Option<BoundingBox> = None;
         self.expand_bbox_node(&mut bbox, node);
-        node.bbox = bbox;
         self.nodes_modified.insert(node.id, bbox.unwrap());
 
         self.xmlwriter.write_node(node)
