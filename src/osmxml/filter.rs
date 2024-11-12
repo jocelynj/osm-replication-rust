@@ -128,13 +128,8 @@ impl PolyInfo {
         }
         false
     }
-    fn nodes_in_poly<T: OsmReader>(&mut self, reader: &mut T, nodes: &Vec<u64>) -> bool {
-        for n in nodes {
-            if self.node_in_poly(reader, *n) {
-                return true;
-            }
-        }
-        false
+    fn nodes_in_poly<T: OsmReader>(&mut self, reader: &mut T, nodes: &[u64]) -> bool {
+        nodes.iter().any(|n| self.node_in_poly(reader, *n))
     }
     fn way_in_poly<T: OsmReader>(&mut self, reader: &mut T, id: u64) -> bool {
         if self.ways_seen_in_poly.contains(&id) {
@@ -152,31 +147,25 @@ impl PolyInfo {
     fn members_in_poly<T: OsmReader>(
         &mut self,
         reader: &mut T,
-        members: &Vec<Member>,
+        members: &[Member],
         prev_relations: Vec<u64>,
     ) -> bool {
-        for m in members {
-            let is_inside = match m.type_.as_str() {
-                "node" => self.node_in_poly(reader, m.ref_),
-                "way" => self.way_in_poly(reader, m.ref_),
-                "relation" => {
-                    if prev_relations.contains(&m.ref_) {
-                        println!(
-                            "Detected relation recursion on id={} - {:?}",
-                            m.ref_, prev_relations
-                        );
-                    }
-                    let mut prev_relations = prev_relations.clone();
-                    prev_relations.push(m.ref_);
-                    self.relation_in_poly(reader, m.ref_, prev_relations)
+        members.iter().any(|m| match m.type_.as_str() {
+            "node" => self.node_in_poly(reader, m.ref_),
+            "way" => self.way_in_poly(reader, m.ref_),
+            "relation" => {
+                if prev_relations.contains(&m.ref_) {
+                    println!(
+                        "Detected relation recursion on id={} - {:?}",
+                        m.ref_, prev_relations
+                    );
                 }
-                _ => panic!("Unsupported relation member: {:?}", m),
-            };
-            if is_inside {
-                return true;
+                let mut prev_relations = prev_relations.clone();
+                prev_relations.push(m.ref_);
+                self.relation_in_poly(reader, m.ref_, prev_relations)
             }
-        }
-        false
+            _ => panic!("Unsupported relation member: {:?}", m),
+        })
     }
     fn relation_in_poly<T: OsmReader>(
         &mut self,
