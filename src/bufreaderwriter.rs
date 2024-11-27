@@ -3,6 +3,7 @@
 // - https://github.com/alemigo/bufreaderwriter-rs
 
 #![allow(dead_code)]
+#![allow(clippy::match_wildcard_for_single_variants)]
 
 use std::io::{self, BufReader, BufWriter, IntoInnerError, Read, Seek, SeekFrom, Write};
 
@@ -167,6 +168,7 @@ impl<RW: Read + Write + Seek> BufReaderWriterRand<RW> {
 
     /// Returns the buffer capacity of the underlying reader or writer.
     pub fn capacity(&self) -> usize {
+        #[allow(clippy::redundant_closure_for_method_calls)]
         self.inner.as_ref().map_or(0, |b| b.capacity())
     }
 }

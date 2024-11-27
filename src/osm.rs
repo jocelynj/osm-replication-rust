@@ -111,11 +111,12 @@ pub struct Relation {
     pub bbox: Option<BoundingBox>,
 }
 
+#[allow(clippy::cast_possible_truncation)]
 pub fn coord_to_decimicro(coord: f64) -> i32 {
     (coord * 1e7).round() as i32
 }
 pub fn decimicro_to_coord(decimicro: i32) -> f64 {
-    (decimicro as f64) * 1e-7
+    f64::from(decimicro) * 1e-7
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]

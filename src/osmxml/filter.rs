@@ -28,6 +28,7 @@ where
 }
 
 fn convert_multipolygon_i64_to_f64(poly: &MultiPolygon<i64>) -> MultiPolygon<f64> {
+    #[allow(clippy::cast_possible_truncation)]
     poly.map_coords(|Coord { x, y }| Coord {
         x: osm::decimicro_to_coord(x as i32),
         y: osm::decimicro_to_coord(y as i32),
@@ -35,8 +36,8 @@ fn convert_multipolygon_i64_to_f64(poly: &MultiPolygon<i64>) -> MultiPolygon<f64
 }
 fn convert_multipolygon_f64_to_i64(poly: &MultiPolygon<f64>) -> MultiPolygon<i64> {
     poly.map_coords(|Coord { x, y }| Coord {
-        x: osm::coord_to_decimicro(x) as i64,
-        y: osm::coord_to_decimicro(y) as i64,
+        x: i64::from(osm::coord_to_decimicro(x)),
+        y: i64::from(osm::coord_to_decimicro(y)),
     })
 }
 
@@ -49,7 +50,7 @@ fn buffer_polygon(mp: &MultiPolygon<i64>) -> MultiPolygon<i64> {
     let poly_buffered = match geom_buffered {
         Geometry::Polygon(p) => MultiPolygon::new(vec![p]),
         Geometry::MultiPolygon(mp) => mp,
-        g => panic!("Unexpected object returned by GEOS: {:?}", g),
+        g => panic!("Unexpected object returned by GEOS: {g:?}"),
     };
     convert_multipolygon_f64_to_i64(&poly_buffered)
 }
@@ -120,7 +121,7 @@ impl PolyInfo {
         }
         let node = reader.read_node(id);
         if let Some(node) = node {
-            let point = point!(x: node.decimicro_lon as i64, y: node.decimicro_lat as i64);
+            let point = point!(x: i64::from(node.decimicro_lon), y: i64::from(node.decimicro_lat));
             if point.intersects(&self.poly) {
                 self.nodes_seen_in_poly.insert(id);
                 return true;
@@ -148,7 +149,7 @@ impl PolyInfo {
         &mut self,
         reader: &mut T,
         members: &[Member],
-        prev_relations: Vec<u64>,
+        prev_relations: &[u64],
     ) -> bool {
         members.iter().any(|m| match m.type_.as_str() {
             "node" => self.node_in_poly(reader, m.ref_),
@@ -160,18 +161,18 @@ impl PolyInfo {
                         m.ref_, prev_relations
                     );
                 }
-                let mut prev_relations = prev_relations.clone();
+                let mut prev_relations = prev_relations.to_owned();
                 prev_relations.push(m.ref_);
-                self.relation_in_poly(reader, m.ref_, prev_relations)
+                self.relation_in_poly(reader, m.ref_, &prev_relations)
             }
-            _ => panic!("Unsupported relation member: {:?}", m),
+            _ => panic!("Unsupported relation member: {m:?}"),
         })
     }
     fn relation_in_poly<T: OsmReader>(
         &mut self,
         reader: &mut T,
         id: u64,
-        prev_relations: Vec<u64>,
+        prev_relations: &[u64],
     ) -> bool {
         if self.relations_seen_in_poly.contains(&id) {
             return true;
@@ -212,7 +213,7 @@ where
     T: OsmReader,
 {
     fn update_node(&mut self, node: &mut Node, action: &Action) -> Result<(), io::Error> {
-        let point = point!(x: node.decimicro_lon as i64, y: node.decimicro_lat as i64);
+        let point = point!(x: i64::from(node.decimicro_lon), y: i64::from(node.decimicro_lat));
         let in_poly_buffered = point.intersects(&self.poly_buffered.poly)
             || self.poly_buffered.node_in_poly(&mut self.reader, node.id);
         if in_poly_buffered {
@@ -268,7 +269,7 @@ where
         if inside_bbox {
             if self
                 .poly
-                .members_in_poly(&mut self.reader, &relation.members, vec![])
+                .members_in_poly(&mut self.reader, &relation.members, &[])
             {
                 self.poly.relations_seen_in_poly.insert(relation.id);
                 self.poly_buffered
@@ -276,15 +277,13 @@ where
                     .insert(relation.id);
                 self.xmlwriter.write_action_start(action);
                 self.write_relation(relation)?;
-            } else if self.poly_buffered.members_in_poly(
-                &mut self.reader,
-                &relation.members,
-                vec![],
-            ) || self.poly_buffered.relation_in_poly(
-                &mut self.reader,
-                relation.id,
-                vec![],
-            ) {
+            } else if self
+                .poly_buffered
+                .members_in_poly(&mut self.reader, &relation.members, &[])
+                || self
+                    .poly_buffered
+                    .relation_in_poly(&mut self.reader, relation.id, &[])
+            {
                 self.poly_buffered
                     .relations_seen_in_poly
                     .insert(relation.id);

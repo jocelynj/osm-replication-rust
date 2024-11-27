@@ -49,12 +49,12 @@ enum OpenMode {
 
 impl OsmBin {
     pub fn new(dir: &str) -> Result<OsmBin, io::Error> {
-        Self::new_any(dir, OpenMode::Read)
+        Self::new_any(dir, &OpenMode::Read)
     }
     pub fn new_writer(dir: &str) -> Result<OsmBin, io::Error> {
-        Self::new_any(dir, OpenMode::Write)
+        Self::new_any(dir, &OpenMode::Write)
     }
-    fn new_any(dir: &str, mode: OpenMode) -> Result<OsmBin, io::Error> {
+    fn new_any(dir: &str, mode: &OpenMode) -> Result<OsmBin, io::Error> {
         let mut file_options = OpenOptions::new();
         file_options.read(true);
         if let OpenMode::Write = mode {
@@ -77,7 +77,7 @@ impl OsmBin {
         if let OpenMode::Write = mode {
             for line in way_free.lines() {
                 let line = line.unwrap();
-                let mut s = line.split(";");
+                let mut s = line.split(';');
                 let pos: u64 = s.next().unwrap().parse().unwrap();
                 let num_nodes: u16 = s.next().unwrap().parse().unwrap();
                 way_free_data.entry(num_nodes).or_default().push(pos);
@@ -97,7 +97,7 @@ impl OsmBin {
 
     pub fn init(dir: &str) {
         match fs::create_dir(dir) {
-            Ok(_) => (),
+            Ok(()) => (),
             Err(error) => match error.kind() {
                 ErrorKind::AlreadyExists => (),
                 _ => panic!("Error with directory {dir}: {error}"),
@@ -122,7 +122,7 @@ impl OsmBin {
             };
         }
         match fs::create_dir(Path::new(dir).join("relation")) {
-            Ok(_) => (),
+            Ok(()) => (),
             Err(error) => match error.kind() {
                 ErrorKind::AlreadyExists => (),
                 _ => panic!("Error with directory {dir}: {error}"),
@@ -130,7 +130,7 @@ impl OsmBin {
         };
     }
 
-    fn bytes5_to_int(d: &[u8; 5]) -> u64 {
+    fn bytes5_to_int(d: [u8; 5]) -> u64 {
         let mut arr: Vec<u8> = Vec::with_capacity(8);
         arr.extend([0; 3]);
         arr.extend(d);
@@ -145,24 +145,27 @@ impl OsmBin {
         arr
     }
 
-    fn bytes4_to_int(d: &[u8; 4]) -> u32 {
-        u32::from_be_bytes(*d)
+    fn bytes4_to_int(d: [u8; 4]) -> u32 {
+        u32::from_be_bytes(d)
     }
     fn int_to_bytes4(d: u32) -> [u8; 4] {
         d.to_be_bytes()
     }
 
-    fn bytes4_to_coord(d: &[u8; 4]) -> i32 {
+    #[allow(clippy::cast_possible_truncation)]
+    fn bytes4_to_coord(d: [u8; 4]) -> i32 {
         // TODO: Store directly i32 instead of converting to a positive number
-        ((Self::bytes4_to_int(d) as i64) - 1800000000) as i32
+        (i64::from(Self::bytes4_to_int(d)) - 1_800_000_000) as i32
     }
     fn coord_to_bytes4(d: i32) -> [u8; 4] {
         // TODO: Store directly i32 instead of converting to a positive number
-        Self::int_to_bytes4(((d as i64) + 1800000000) as u32)
+        #[allow(clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_sign_loss)]
+        Self::int_to_bytes4((i64::from(d) + 1_800_000_000) as u32)
     }
 
-    fn bytes2_to_int(d: &[u8; 2]) -> u16 {
-        u16::from_be_bytes(*d)
+    fn bytes2_to_int(d: [u8; 2]) -> u16 {
+        u16::from_be_bytes(d)
     }
     fn int_to_bytes2(d: u16) -> [u8; 2] {
         d.to_be_bytes()
@@ -184,7 +187,7 @@ impl OsmBin {
     }
 
     fn join_nums(nums: &[u8]) -> String {
-        let str_nums: Vec<String> = nums.iter().map(|n| n.to_string()).collect();
+        let str_nums: Vec<String> = nums.iter().map(std::string::ToString::to_string).collect();
         str_nums.join("")
     }
 }
@@ -196,7 +199,7 @@ impl Drop for OsmBin {
 
         for (num_nodes, v) in &self.way_free_data {
             for pos in v {
-                writeln!(way_free, "{};{}", pos, num_nodes).unwrap();
+                writeln!(way_free, "{pos};{num_nodes}").unwrap();
             }
         }
     }
@@ -219,8 +222,8 @@ impl OsmReader for OsmBin {
         {
             return None;
         }
-        let decimicro_lat = Self::bytes4_to_coord(&lat_buffer);
-        let decimicro_lon = Self::bytes4_to_coord(&lon_buffer);
+        let decimicro_lat = Self::bytes4_to_coord(lat_buffer);
+        let decimicro_lon = Self::bytes4_to_coord(lon_buffer);
 
         Some(Node {
             id,
@@ -240,7 +243,7 @@ impl OsmReader for OsmBin {
         if read_count == 0 || buffer == [0u8; WAY_PTR_SIZE] {
             return None;
         }
-        let way_data_addr = Self::bytes5_to_int(&buffer);
+        let way_data_addr = Self::bytes5_to_int(buffer);
 
         self.way_data
             .seek(SeekFrom::Start(way_data_addr))
@@ -250,7 +253,7 @@ impl OsmReader for OsmBin {
         if read_count == 0 || buffer == [0u8; 2] {
             return None;
         }
-        let num_nodes = Self::bytes2_to_int(&buffer);
+        let num_nodes = Self::bytes2_to_int(buffer);
 
         let mut buffer = [0u8; NODE_ID_SIZE];
 
@@ -260,7 +263,7 @@ impl OsmReader for OsmBin {
             if read_count == 0 || buffer == [0u8; NODE_ID_SIZE] {
                 return None;
             }
-            nodes.push(Self::bytes5_to_int(&buffer));
+            nodes.push(Self::bytes5_to_int(buffer));
         }
 
         Some(Way {
@@ -326,6 +329,7 @@ impl OsmWriter for OsmBin {
         if way_idx_addr < self.way_idx_size {
             self.update_way(way, &Action::Delete())?;
         }
+        #[allow(clippy::cast_possible_truncation)]
         let num_nodes = way.nodes.len() as u16;
         let way_data_addr = self
             .way_free_data
@@ -380,7 +384,7 @@ impl OsmWriter for OsmBin {
             .join(relid_part1)
             .join(relid_part2);
         match fs::create_dir_all(rel_path.parent().unwrap()) {
-            Ok(_) => (),
+            Ok(()) => (),
             Err(error) => match error.kind() {
                 ErrorKind::AlreadyExists => (),
                 _ => panic!("Error with directory: {error}"),
@@ -418,7 +422,7 @@ impl OsmUpdate for OsmBin {
             if read_count == 0 || buffer == [0u8; WAY_PTR_SIZE] {
                 return Ok(());
             }
-            let way_data_addr = Self::bytes5_to_int(&buffer);
+            let way_data_addr = Self::bytes5_to_int(buffer);
 
             self.way_data
                 .seek(SeekFrom::Start(way_data_addr))
@@ -428,7 +432,7 @@ impl OsmUpdate for OsmBin {
             if read_count == 0 || buffer == [0u8; 2] {
                 panic!("Should have gotten way data for way_id={}", way.id);
             }
-            let num_nodes = Self::bytes2_to_int(&buffer);
+            let num_nodes = Self::bytes2_to_int(buffer);
 
             self.way_free_data
                 .entry(num_nodes)
@@ -661,10 +665,10 @@ mod tests {
 
     #[test]
     fn bytes5_to_int() {
-        assert_eq!(0x00_00_00_00_00, OsmBin::bytes5_to_int(&[0, 0, 0, 0, 0]));
+        assert_eq!(0x00_00_00_00_00, OsmBin::bytes5_to_int([0, 0, 0, 0, 0]));
         assert_eq!(
             0x12_23_45_67_89,
-            OsmBin::bytes5_to_int(&[0x12, 0x23, 0x45, 0x67, 0x89])
+            OsmBin::bytes5_to_int([0x12, 0x23, 0x45, 0x67, 0x89])
         );
     }
     #[test]
@@ -678,18 +682,15 @@ mod tests {
     #[test]
     fn bytes5() {
         for n in 0_u64..100000_u64 {
-            assert_eq!(n, OsmBin::bytes5_to_int(&OsmBin::int_to_bytes5(n)));
-            assert_eq!(
-                14 * n,
-                OsmBin::bytes5_to_int(&OsmBin::int_to_bytes5(14 * n))
-            );
+            assert_eq!(n, OsmBin::bytes5_to_int(OsmBin::int_to_bytes5(n)));
+            assert_eq!(14 * n, OsmBin::bytes5_to_int(OsmBin::int_to_bytes5(14 * n)));
             assert_eq!(
                 1098 * n,
-                OsmBin::bytes5_to_int(&OsmBin::int_to_bytes5(1098 * n))
+                OsmBin::bytes5_to_int(OsmBin::int_to_bytes5(1098 * n))
             );
             assert_eq!(
                 4898481 * n,
-                OsmBin::bytes5_to_int(&OsmBin::int_to_bytes5(4898481 * n))
+                OsmBin::bytes5_to_int(OsmBin::int_to_bytes5(4898481 * n))
             );
         }
     }
@@ -702,18 +703,18 @@ mod tests {
     #[test]
     fn coord() {
         for n in (-1800000000_i32..1800000000_i32).step_by(100000) {
-            assert_eq!(n, OsmBin::bytes4_to_coord(&OsmBin::coord_to_bytes4(n)));
+            assert_eq!(n, OsmBin::bytes4_to_coord(OsmBin::coord_to_bytes4(n)));
             assert_eq!(
                 n + 13198,
-                OsmBin::bytes4_to_coord(&OsmBin::coord_to_bytes4(n + 13198))
+                OsmBin::bytes4_to_coord(OsmBin::coord_to_bytes4(n + 13198))
             );
             assert_eq!(
                 n + 401,
-                OsmBin::bytes4_to_coord(&OsmBin::coord_to_bytes4(n + 401))
+                OsmBin::bytes4_to_coord(OsmBin::coord_to_bytes4(n + 401))
             );
             assert_eq!(
                 n + 50014,
-                OsmBin::bytes4_to_coord(&OsmBin::coord_to_bytes4(n + 50014))
+                OsmBin::bytes4_to_coord(OsmBin::coord_to_bytes4(n + 50014))
             );
         }
     }

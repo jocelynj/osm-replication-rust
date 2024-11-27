@@ -45,7 +45,7 @@ impl<T> OsmXmlBBox<T>
 where
     T: OsmReader,
 {
-    fn expand_bbox_node_only(&mut self, bbox: &mut Option<BoundingBox>, node: &Node) {
+    fn expand_bbox_node_only(bbox: &mut Option<BoundingBox>, node: &Node) {
         if let Some(bb) = bbox.as_mut() {
             bb.expand_node(node);
         } else {
@@ -54,7 +54,7 @@ where
                 decimicro_maxlat: node.decimicro_lat,
                 decimicro_minlon: node.decimicro_lon,
                 decimicro_maxlon: node.decimicro_lon,
-            })
+            });
         }
     }
     fn expand_bbox_node_id(&mut self, bbox: &mut Option<BoundingBox>, id: u64) {
@@ -62,12 +62,12 @@ where
             expand_bbox(bbox, bb);
         }
         if let Some(node) = self.reader.read_node(id) {
-            self.expand_bbox_node_only(bbox, &node);
+            Self::expand_bbox_node_only(bbox, &node);
         }
     }
     fn expand_bbox_node(&mut self, bbox: &mut Option<BoundingBox>, node: &Node) {
         self.expand_bbox_node_id(bbox, node.id);
-        self.expand_bbox_node_only(bbox, node);
+        Self::expand_bbox_node_only(bbox, node);
     }
 
     fn expand_bbox_way_only(&mut self, bbox: &mut Option<BoundingBox>, way: &Way) {
@@ -92,14 +92,14 @@ where
         &mut self,
         bbox: &mut Option<BoundingBox>,
         relation: &Relation,
-        prev_relations: Vec<u64>,
+        prev_relations: &[u64],
     ) {
         for m in &relation.members {
             match m.type_.as_str() {
                 "node" => self.expand_bbox_node_id(bbox, m.ref_),
                 "way" => self.expand_bbox_way_id(bbox, m.ref_),
-                "relation" => self.expand_bbox_relation_id(bbox, m.ref_, prev_relations.clone()),
-                _ => panic!("Unsupported relation member: {:?}", m),
+                "relation" => self.expand_bbox_relation_id(bbox, m.ref_, prev_relations.to_owned()),
+                _ => panic!("Unsupported relation member: {m:?}"),
             }
         }
     }
@@ -110,10 +110,7 @@ where
         mut prev_relations: Vec<u64>,
     ) {
         if prev_relations.contains(&id) {
-            println!(
-                "Detected relation recursion on id={} - {:?}",
-                id, prev_relations
-            );
+            println!("Detected relation recursion on id={id} - {prev_relations:?}");
             return;
         }
         if let Some(bb) = self.relations_modified.get(&id) {
@@ -121,12 +118,12 @@ where
         }
         if let Some(relation) = self.reader.read_relation(id) {
             prev_relations.push(id);
-            self.expand_bbox_relation_only(bbox, &relation, prev_relations);
+            self.expand_bbox_relation_only(bbox, &relation, &prev_relations);
         }
     }
     fn expand_bbox_relation(&mut self, bbox: &mut Option<BoundingBox>, relation: &Relation) {
         self.expand_bbox_relation_id(bbox, relation.id, vec![]);
-        self.expand_bbox_relation_only(bbox, relation, vec![relation.id]);
+        self.expand_bbox_relation_only(bbox, relation, &[relation.id]);
     }
 }
 

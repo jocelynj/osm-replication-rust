@@ -37,8 +37,8 @@ impl Update {
             printlnt!("{n}");
             let n_split = format!(
                 "{:03}/{:03}/{:03}",
-                (n / 1000000) % 1000,
-                (n / 1000) % 1000,
+                (n / 1_000_000) % 1000,
+                (n / 1_000) % 1000,
                 n % 1000
             );
             let n_split = n_split.as_str();
@@ -127,7 +127,7 @@ impl Update {
     fn read_state(content: &str, source: &str) -> Result<u64, Box<dyn Error>> {
         for l in content.lines() {
             if l.starts_with("sequenceNumber=") {
-                return Ok(l.split("=").nth(1).unwrap().parse().unwrap());
+                return Ok(l.split('=').nth(1).unwrap().parse().unwrap());
             }
         }
         Err(StateNotFound {

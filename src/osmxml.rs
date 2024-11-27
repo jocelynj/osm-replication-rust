@@ -93,6 +93,7 @@ impl OsmXml {
 }
 
 impl OsmCopyTo for OsmXml {
+    #[allow(clippy::too_many_lines)]
     fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>> {
         let mut reader = self.xmlreader(&self.filename).unwrap();
 
@@ -129,11 +130,11 @@ impl OsmCopyTo for OsmXml {
                                 b"id" => id = v.parse().unwrap(),
                                 b"lat" => {
                                     decimicro_lat =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 b"lon" => {
                                     decimicro_lon =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 b"version" => version = Some(v.parse().unwrap()),
                                 b"timestamp" => timestamp = Some(v.parse().unwrap()),
@@ -285,11 +286,11 @@ impl OsmCopyTo for OsmXml {
                                 b"id" => id = v.parse().unwrap(),
                                 b"lat" => {
                                     decimicro_lat =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 b"lon" => {
                                     decimicro_lon =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 b"version" => version = Some(v.parse().unwrap()),
                                 b"timestamp" => timestamp = Some(v.parse().unwrap()),
@@ -367,6 +368,7 @@ impl OsmCopyTo for OsmXml {
 }
 
 impl OsmUpdateTo for OsmXml {
+    #[allow(clippy::too_many_lines)]
     fn update_to(&mut self, target: &mut impl OsmUpdate) -> Result<(), Box<dyn Error>> {
         let mut reader = self.xmlreader(&self.filename).unwrap();
 
@@ -406,11 +408,11 @@ impl OsmUpdateTo for OsmXml {
                                 b"id" => id = v.parse().unwrap(),
                                 b"lat" => {
                                     decimicro_lat =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 b"lon" => {
                                     decimicro_lon =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 b"version" => version = Some(v.parse().unwrap()),
                                 b"timestamp" => timestamp = Some(v.parse().unwrap()),
@@ -574,11 +576,11 @@ impl OsmUpdateTo for OsmXml {
                                 b"id" => id = v.parse().unwrap(),
                                 b"lat" => {
                                     decimicro_lat =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 b"lon" => {
                                     decimicro_lon =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 b"version" => version = Some(v.parse().unwrap()),
                                 b"timestamp" => timestamp = Some(v.parse().unwrap()),
@@ -657,19 +659,19 @@ impl OsmUpdateTo for OsmXml {
                             match k {
                                 b"minlat" => {
                                     decimicro_minlat =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 b"maxlat" => {
                                     decimicro_maxlat =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 b"minlon" => {
                                     decimicro_minlon =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 b"maxlon" => {
                                     decimicro_maxlon =
-                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap())
+                                        osm::coord_to_decimicro(v.parse::<f64>().unwrap());
                                 }
                                 _ => (),
                             }

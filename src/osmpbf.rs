@@ -19,6 +19,7 @@ impl OsmPbf {
 }
 
 impl OsmCopyTo for OsmPbf {
+    #[allow(clippy::cast_sign_loss)]
     fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>> {
         let r = File::open(Path::new(&self.filename)).unwrap();
         let mut pbf = osmpbfreader::OsmPbfReader::new(r);
@@ -73,7 +74,7 @@ impl OsmCopyTo for OsmPbf {
                             ref_,
                             type_,
                             role: r.role.to_string(),
-                        })
+                        });
                     }
                     let mut tags: Vec<(String, String)> = Vec::new();
                     for (k, v) in relation.tags.into_inner() {

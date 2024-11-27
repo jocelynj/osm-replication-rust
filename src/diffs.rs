@@ -191,7 +191,7 @@ impl Poly {
         if let Some(ref f) = file {
             name = f.file_stem().unwrap().to_string_lossy().to_string();
         } else {
-            name = String::from("");
+            name = String::new();
         }
         Poly {
             file,

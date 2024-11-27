@@ -22,14 +22,12 @@ pub fn read_multipolygon_from_wkt(
         }
         let line = line.unwrap();
         let mut skip_polygon = false;
-        if line.starts_with("!") {
-            skip_polygon = true
+        if line.starts_with('!') {
+            skip_polygon = true;
         }
         let polygon = read_polygon(&mut lines);
         if !skip_polygon {
-            if let Ok(poly) = polygon {
-                polygons.push(poly);
-            }
+            polygons.push(polygon);
         }
     }
     let multipolygon = MultiPolygon::new(polygons);
@@ -37,7 +35,7 @@ pub fn read_multipolygon_from_wkt(
     Ok((name, multipolygon))
 }
 
-fn read_polygon(lines: &mut str::Lines) -> Result<Polygon<i64>, Box<dyn Error>> {
+fn read_polygon(lines: &mut str::Lines) -> Polygon<i64> {
     let mut coords: Vec<Coord<i64>> = Vec::new();
     loop {
         let line = lines.next();
@@ -53,20 +51,19 @@ fn read_polygon(lines: &mut str::Lines) -> Result<Polygon<i64>, Box<dyn Error>> 
         let y: f64 = c.next().unwrap().parse().unwrap();
         let x = osm::coord_to_decimicro(x);
         let y = osm::coord_to_decimicro(y);
-        coords.push(coord!(x: x as i64, y: y as i64))
+        coords.push(coord!(x: i64::from(x), y: i64::from(y)));
     }
     let linestring = LineString::new(coords);
-    let polygon = Polygon::new(linestring, vec![]);
-    Ok(polygon)
+    Polygon::new(linestring, vec![])
 }
 
 pub fn bounding_box_to_polygon(bbox: &BoundingBox) -> Polygon<i64> {
     polygon![
-        (x: bbox.decimicro_minlon as i64, y: bbox.decimicro_minlat as i64),
-        (x: bbox.decimicro_minlon as i64, y: bbox.decimicro_maxlat as i64),
-        (x: bbox.decimicro_maxlon as i64, y: bbox.decimicro_maxlat as i64),
-        (x: bbox.decimicro_maxlon as i64, y: bbox.decimicro_minlat as i64),
-        (x: bbox.decimicro_minlon as i64, y: bbox.decimicro_minlat as i64),
+        (x: i64::from(bbox.decimicro_minlon), y: i64::from(bbox.decimicro_minlat)),
+        (x: i64::from(bbox.decimicro_minlon), y: i64::from(bbox.decimicro_maxlat)),
+        (x: i64::from(bbox.decimicro_maxlon), y: i64::from(bbox.decimicro_maxlat)),
+        (x: i64::from(bbox.decimicro_maxlon), y: i64::from(bbox.decimicro_minlat)),
+        (x: i64::from(bbox.decimicro_minlon), y: i64::from(bbox.decimicro_minlat)),
     ]
 }
 
