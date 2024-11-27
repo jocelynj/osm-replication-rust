@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::error::Error;
 use std::fmt;
 use std::fs;
@@ -129,9 +130,9 @@ impl Diff {
             orig_diff
         };
 
-        for p in &poly.inners {
-            self.generate_diff_recursive(p, orig_diff, lvl + 2).unwrap();
-        }
+        poly.inners
+            .par_iter()
+            .for_each(|p| self.generate_diff_recursive(p, orig_diff, lvl + 2).unwrap());
         Ok(())
     }
 }
