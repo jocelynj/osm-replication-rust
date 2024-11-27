@@ -110,6 +110,7 @@ impl<RW: Read + Write + Seek> BufReaderWriterRand<RW> {
 
     /// Returns true if the `BufReaderWriter` in read mode, otherwise false for write mode.
     pub fn is_reader(&self) -> bool {
+        #[allow(clippy::match_like_matches_macro)]
         match self.inner.as_ref().unwrap() {
             BufIO::Reader(_) => true,
             _ => false,
@@ -189,6 +190,7 @@ impl<RW: Read + Write + Seek> Read for BufReaderWriterRand<RW> {
 
 impl<RW: Read + Write + Seek> Write for BufReaderWriterRand<RW> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        #[allow(clippy::seek_from_current)]
         match self.inner.as_mut().unwrap() {
             BufIO::Writer(w) => w.write(buf),
             BufIO::Reader(r) => {
