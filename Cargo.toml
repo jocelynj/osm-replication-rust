@@ -9,20 +9,20 @@ license = "MIT"
 
 [dependencies]
 chrono = "0.4.38"
-clap = { version = "4.5.0", features = ["derive"] }
-flate2 = "1.0.34"
-geo = "0.28.0"
+clap = { version = "4.5.21", features = ["derive"] }
+flate2 = "1.0.35"
+geo = "0.29.2"
 geos = { version = "9.0.0", features = ["geo"] }
 osmpbfreader = "0.16.1"
-quick-xml = "0.36.2"
+quick-xml = "0.37.1"
 rayon = "1.10.0"
-serde = { version = "1.0.210", features = ["derive"] }
-serde_json = "1.0.128"
+serde = { version = "1.0.215", features = ["derive"] }
+serde_json = "1.0.133"
 serde_with = "3.11.0"
-ureq = "2.10.1"
+ureq = "2.11.0"
 
 [dev-dependencies]
-tempfile = "3.13.0"
+tempfile = "3.14.0"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }

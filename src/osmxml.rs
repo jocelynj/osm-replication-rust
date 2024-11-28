@@ -737,7 +737,7 @@ impl OsmWriter for OsmXml {
                             .unwrap();
                     }
                 }
-                Ok::<(), quick_xml::Error>(())
+                Ok(())
             })
             .unwrap();
         }
@@ -797,7 +797,7 @@ impl OsmWriter for OsmXml {
                     .write_empty()
                     .unwrap();
             }
-            Ok::<(), quick_xml::Error>(())
+            Ok(())
         })
         .unwrap();
 
@@ -857,7 +857,7 @@ impl OsmWriter for OsmXml {
                     .write_empty()
                     .unwrap();
             }
-            Ok::<(), quick_xml::Error>(())
+            Ok(())
         })
         .unwrap();
 
