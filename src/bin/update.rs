@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use osmbin_rust::update;
+use osm_replication_rust::update;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

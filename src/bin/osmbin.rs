@@ -1,7 +1,7 @@
 use clap::Parser;
 
-use osmbin_rust::osm::{OsmReader, OsmUpdate, OsmWriter};
-use osmbin_rust::osmbin;
+use osm_replication_rust::osm::{OsmReader, OsmUpdate, OsmWriter};
+use osm_replication_rust::osmbin;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

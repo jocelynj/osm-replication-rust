@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::fs;
 
-use osmbin_rust::diffs;
+use osm_replication_rust::diffs;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
