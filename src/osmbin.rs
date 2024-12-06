@@ -1,6 +1,7 @@
 use serde_json;
 use std::cmp;
 use std::collections::HashMap;
+use std::error::Error;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, ErrorKind};
 use std::io::{BufRead, Read, Seek, SeekFrom, Write};
@@ -38,8 +39,19 @@ pub struct OsmBin {
     way_data: bufreaderwriter::BufReaderWriterRand<File>,
     way_free_data: HashMap<u16, Vec<u64>>,
 
-    way_idx_size: u64,
+    node_crd_init_size: u64,
+    way_idx_init_size: u64,
     way_data_size: u64,
+
+    prev_node_id: u64,
+    prev_way_id: u64,
+
+    num_nodes: u64,
+    num_ways: u64,
+    num_relations: u64,
+    num_seek_node_crd: u64,
+    num_seek_way_idx: u64,
+    num_seek_way_data: u64,
 }
 
 enum OpenMode {
@@ -61,9 +73,10 @@ impl OsmBin {
             file_options.write(true);
         }
         let node_crd = file_options.open(Path::new(dir).join(NODE_CRD))?;
+        let node_crd_init_size = node_crd.metadata()?.len();
         let node_crd = bufreaderwriter::BufReaderWriterRand::new_reader(node_crd);
         let way_idx = file_options.open(Path::new(dir).join(WAY_IDX))?;
-        let way_idx_size = way_idx.metadata()?.len();
+        let way_idx_init_size = way_idx.metadata()?.len();
         let way_idx = bufreaderwriter::BufReaderWriterRand::new_reader(way_idx);
 
         let way_data = file_options.open(Path::new(dir).join(WAY_DATA))?;
@@ -90,8 +103,17 @@ impl OsmBin {
             way_idx,
             way_data,
             way_free_data,
-            way_idx_size,
+            node_crd_init_size,
+            way_idx_init_size,
             way_data_size,
+            prev_node_id: 0,
+            prev_way_id: 0,
+            num_nodes: 0,
+            num_ways: 0,
+            num_relations: 0,
+            num_seek_node_crd: 0,
+            num_seek_way_idx: 0,
+            num_seek_way_data: 0,
         })
     }
 
@@ -299,13 +321,26 @@ impl OsmReader for OsmBin {
 
 impl OsmWriter for OsmBin {
     fn write_node(&mut self, node: &mut Node) -> Result<(), io::Error> {
+        debug_assert!(node.id > self.prev_node_id);
+        self.prev_node_id = node.id;
+
         let lat = Self::coord_to_bytes4(node.decimicro_lat);
         let lon = Self::coord_to_bytes4(node.decimicro_lon);
         let node_crd_addr = node.id * 8;
 
         // Try not to seek if not necessary, as seeking flushes write buffer
-        if self.node_crd.stream_position().unwrap() != node_crd_addr {
-            self.node_crd.seek(SeekFrom::Start(node_crd_addr)).unwrap();
+        let cur_position = self.node_crd.stream_position().unwrap();
+        if cur_position != node_crd_addr {
+            let diff: i64 =
+                i64::try_from(node_crd_addr).unwrap() - i64::try_from(cur_position).unwrap();
+            if self.node_crd_init_size < node_crd_addr && diff > 0 && diff < 4096 {
+                let vec: Vec<u8> = vec![0; usize::try_from(diff).unwrap()];
+                self.node_crd.write_all(&vec).unwrap();
+            } else {
+                self.node_crd.seek(SeekFrom::Start(node_crd_addr)).unwrap();
+                self.num_seek_node_crd += 1;
+            }
+            assert_eq!(self.node_crd.stream_position().unwrap(), node_crd_addr);
         }
         if self.node_crd.write(&lat).unwrap() != 4 {
             panic!(
@@ -319,14 +354,18 @@ impl OsmWriter for OsmBin {
                 node.id, NODE_CRD
             );
         }
+        self.num_nodes += 1;
 
         Ok(())
     }
     fn write_way(&mut self, way: &mut Way) -> Result<(), io::Error> {
+        debug_assert!(way.id > self.prev_way_id);
+        self.prev_way_id = way.id;
+
         let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
 
         // Only need to delete way if it could be inside file
-        if way_idx_addr < self.way_idx_size {
+        if way_idx_addr < self.way_idx_init_size {
             self.update_way(way, &Action::Delete())?;
         }
         #[allow(clippy::cast_possible_truncation)]
@@ -341,6 +380,7 @@ impl OsmWriter for OsmBin {
         // Try not to seek if not necessary, as seeking flushes write buffer
         if self.way_data.stream_position().unwrap() != way_data_addr {
             self.way_data.seek(SeekFrom::Start(way_data_addr))?;
+            self.num_seek_way_data += 1;
         }
         let num_nodes = Self::int_to_bytes2(num_nodes);
         if self.way_data.write(&num_nodes).unwrap() != 2 {
@@ -360,16 +400,26 @@ impl OsmWriter for OsmBin {
         }
 
         // Try not to seek if not necessary, as seeking flushes write buffer
-        if self.way_idx.stream_position().unwrap() != way_idx_addr {
-            self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
+        let cur_position = self.way_idx.stream_position().unwrap();
+        if cur_position != way_idx_addr {
+            let diff: i64 =
+                i64::try_from(way_idx_addr).unwrap() - i64::try_from(cur_position).unwrap();
+            if self.way_idx_init_size < way_idx_addr && diff > 0 && diff < 4096 {
+                let vec: Vec<u8> = vec![0; usize::try_from(diff).unwrap()];
+                self.way_idx.write_all(&vec).unwrap();
+            } else {
+                self.way_idx.seek(SeekFrom::Start(way_idx_addr)).unwrap();
+                self.num_seek_way_idx += 1;
+            }
+            assert_eq!(self.way_idx.stream_position().unwrap(), way_idx_addr);
         }
         let buffer = Self::int_to_bytes5(way_data_addr);
         if self.way_idx.write(&buffer).unwrap() != WAY_PTR_SIZE {
             panic!("Could not write idx for way id={} to {}", way.id, WAY_IDX);
         }
 
-        self.way_idx_size = cmp::max(self.way_idx_size, self.way_idx.stream_position().unwrap());
         self.way_data_size = cmp::max(self.way_data_size, self.way_data.stream_position().unwrap());
+        self.num_ways += 1;
 
         Ok(())
     }
@@ -394,6 +444,21 @@ impl OsmWriter for OsmBin {
         let json_data = serde_json::to_string(relation)?;
         fs::write(&rel_path, json_data)?;
 
+        self.num_relations += 1;
+
+        Ok(())
+    }
+    fn write_end(&mut self, _change: bool) -> Result<(), Box<dyn Error>> {
+        println!("Osmbin import finished");
+        println!(
+            "nodes:     {} ({} seeks)",
+            self.num_nodes, self.num_seek_node_crd
+        );
+        println!(
+            "ways:      {} ({} + {} seeks)",
+            self.num_ways, self.num_seek_way_idx, self.num_seek_way_data
+        );
+        println!("relations: {}", self.num_relations);
         Ok(())
     }
 }
