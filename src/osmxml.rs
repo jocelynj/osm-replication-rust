@@ -92,9 +92,12 @@ impl OsmXml {
     }
 }
 
-impl OsmCopyTo for OsmXml {
+impl<T> OsmCopyTo<T> for OsmXml
+where
+    T: OsmWriter,
+{
     #[allow(clippy::too_many_lines)]
-    fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>> {
+    fn copy_to(&mut self, target: &mut T) -> Result<(), Box<dyn Error>> {
         let mut reader = self.xmlreader(&self.filename).unwrap();
 
         let mut buf = Vec::new();
@@ -367,9 +370,12 @@ impl OsmCopyTo for OsmXml {
     }
 }
 
-impl OsmUpdateTo for OsmXml {
+impl<T> OsmUpdateTo<T> for OsmXml
+where
+    T: OsmUpdate,
+{
     #[allow(clippy::too_many_lines)]
-    fn update_to(&mut self, target: &mut impl OsmUpdate) -> Result<(), Box<dyn Error>> {
+    fn update_to(&mut self, target: &mut T) -> Result<(), Box<dyn Error>> {
         let mut reader = self.xmlreader(&self.filename).unwrap();
 
         let mut buf = Vec::new();

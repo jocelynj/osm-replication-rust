@@ -234,11 +234,11 @@ pub trait OsmUpdate: OsmWriter {
     }
 }
 
-pub trait OsmCopyTo {
-    fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>>;
+pub trait OsmCopyTo<T: OsmWriter> {
+    fn copy_to(&mut self, target: &mut T) -> Result<(), Box<dyn Error>>;
 }
-pub trait OsmUpdateTo {
-    fn update_to(&mut self, target: &mut impl OsmUpdate) -> Result<(), Box<dyn Error>>;
+pub trait OsmUpdateTo<T: OsmUpdate> {
+    fn update_to(&mut self, target: &mut T) -> Result<(), Box<dyn Error>>;
 }
 
 #[derive(Debug)]

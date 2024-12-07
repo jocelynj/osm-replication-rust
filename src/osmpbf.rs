@@ -25,9 +25,12 @@ macro_rules! printlnt {
     };
 }
 
-impl OsmCopyTo for OsmPbf {
+impl<T> OsmCopyTo<T> for OsmPbf
+where
+    T: OsmWriter,
+{
     #[allow(clippy::cast_sign_loss)]
-    fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>> {
+    fn copy_to(&mut self, target: &mut T) -> Result<(), Box<dyn Error>> {
         let r = File::open(Path::new(&self.filename)).unwrap();
         let mut pbf = osmpbfreader::OsmPbfReader::new(r);
 
