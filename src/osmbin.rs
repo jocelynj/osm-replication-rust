@@ -342,18 +342,9 @@ impl OsmWriter for OsmBin {
             }
             assert_eq!(self.node_crd.stream_position().unwrap(), node_crd_addr);
         }
-        if self.node_crd.write(&lat).unwrap() != 4 {
-            panic!(
-                "Could not write node latitude for id={} to {}",
-                node.id, NODE_CRD
-            );
-        }
-        if self.node_crd.write(&lon).unwrap() != 4 {
-            panic!(
-                "Could not write node longitude for id={} to {}",
-                node.id, NODE_CRD
-            );
-        }
+        self.node_crd.write_all(&lat).unwrap();
+        self.node_crd.write_all(&lon).unwrap();
+
         self.num_nodes += 1;
 
         Ok(())
@@ -383,20 +374,10 @@ impl OsmWriter for OsmBin {
             self.num_seek_way_data += 1;
         }
         let num_nodes = Self::int_to_bytes2(num_nodes);
-        if self.way_data.write(&num_nodes).unwrap() != 2 {
-            panic!(
-                "Could not write num nodes for way id={} to {}",
-                way.id, WAY_DATA
-            );
-        }
+        self.way_data.write_all(&num_nodes).unwrap();
         for n in &way.nodes {
             let node = Self::int_to_bytes5(*n);
-            if self.way_data.write(&node).unwrap() != 5 {
-                panic!(
-                    "Could not write node id for way id={} to {}",
-                    way.id, WAY_DATA
-                );
-            }
+            self.way_data.write_all(&node).unwrap();
         }
 
         // Try not to seek if not necessary, as seeking flushes write buffer
@@ -414,9 +395,7 @@ impl OsmWriter for OsmBin {
             assert_eq!(self.way_idx.stream_position().unwrap(), way_idx_addr);
         }
         let buffer = Self::int_to_bytes5(way_data_addr);
-        if self.way_idx.write(&buffer).unwrap() != WAY_PTR_SIZE {
-            panic!("Could not write idx for way id={} to {}", way.id, WAY_IDX);
-        }
+        self.way_idx.write_all(&buffer).unwrap();
 
         self.way_data_size = cmp::max(self.way_data_size, self.way_data.stream_position().unwrap());
         self.num_ways += 1;
