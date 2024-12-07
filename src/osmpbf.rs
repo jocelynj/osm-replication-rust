@@ -1,3 +1,4 @@
+use chrono;
 use osmpbfreader;
 use std::error::Error;
 use std::fs::File;
@@ -18,6 +19,12 @@ impl OsmPbf {
     }
 }
 
+macro_rules! printlnt {
+    ($($arg:tt)*) => {
+        println!("{} {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"), format_args!($($arg)*));
+    };
+}
+
 impl OsmCopyTo for OsmPbf {
     #[allow(clippy::cast_sign_loss)]
     fn copy_to(&mut self, target: &mut impl OsmWriter) -> Result<(), Box<dyn Error>> {
@@ -25,6 +32,10 @@ impl OsmCopyTo for OsmPbf {
         let mut pbf = osmpbfreader::OsmPbfReader::new(r);
 
         target.write_start(false).unwrap();
+        let mut start_way = false;
+        let mut start_relation = false;
+
+        printlnt!("Starting pbf read");
 
         for obj in pbf.par_iter() {
             let obj = obj?;
@@ -41,6 +52,10 @@ impl OsmCopyTo for OsmPbf {
                         .unwrap();
                 }
                 osmpbfreader::OsmObj::Way(way) => {
+                    if !start_way {
+                        printlnt!("Starting ways");
+                        start_way = true;
+                    }
                     let nodes: Vec<u64> = way.nodes.iter().map(|x| x.0 as u64).collect();
                     target
                         .write_way(&mut Way {
@@ -52,6 +67,10 @@ impl OsmCopyTo for OsmPbf {
                         .unwrap();
                 }
                 osmpbfreader::OsmObj::Relation(relation) => {
+                    if !start_relation {
+                        printlnt!("Starting relations");
+                        start_relation = true;
+                    }
                     let mut members: Vec<Member> = Vec::new();
                     for r in relation.refs {
                         let ref_: u64;
@@ -91,6 +110,7 @@ impl OsmCopyTo for OsmPbf {
                 }
             }
         }
+        printlnt!("Finished pbf read");
 
         target.write_end(false).unwrap();
 
