@@ -340,7 +340,7 @@ impl OsmWriter for OsmBin {
                 self.node_crd.seek(SeekFrom::Start(node_crd_addr)).unwrap();
                 self.num_seek_node_crd += 1;
             }
-            assert_eq!(self.node_crd.stream_position().unwrap(), node_crd_addr);
+            debug_assert_eq!(self.node_crd.stream_position().unwrap(), node_crd_addr);
         }
         self.node_crd.write_all(&lat).unwrap();
         self.node_crd.write_all(&lon).unwrap();
@@ -392,7 +392,7 @@ impl OsmWriter for OsmBin {
                 self.way_idx.seek(SeekFrom::Start(way_idx_addr)).unwrap();
                 self.num_seek_way_idx += 1;
             }
-            assert_eq!(self.way_idx.stream_position().unwrap(), way_idx_addr);
+            debug_assert_eq!(self.way_idx.stream_position().unwrap(), way_idx_addr);
         }
         let buffer = Self::int_to_bytes5(way_data_addr);
         self.way_idx.write_all(&buffer).unwrap();
