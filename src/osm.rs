@@ -111,6 +111,22 @@ pub struct Relation {
     pub bbox: Option<BoundingBox>,
 }
 
+pub struct WayFull {
+    pub way: Way,
+    pub nodes: Vec<Option<Node>>,
+}
+
+pub struct RelationFull {
+    pub relation: Relation,
+    pub members: Vec<ElementFull>,
+}
+
+pub enum ElementFull {
+    Node(Option<Node>),
+    Way(Option<WayFull>),
+    Relation(Option<RelationFull>),
+}
+
 #[allow(clippy::cast_possible_truncation)]
 pub fn coord_to_decimicro(coord: f64) -> i32 {
     (coord * 1e7).round() as i32
@@ -170,6 +186,48 @@ pub trait OsmReader {
     fn read_node(&mut self, id: u64) -> Option<Node>;
     fn read_way(&mut self, id: u64) -> Option<Way>;
     fn read_relation(&mut self, id: u64) -> Option<Relation>;
+
+    fn read_way_full(&mut self, id: u64) -> Option<WayFull> {
+        let way = self.read_way(id);
+        if let Some(way) = way {
+            let mut nodes: Vec<Option<Node>> = Vec::with_capacity(way.nodes.len());
+            for n in &way.nodes {
+                nodes.push(self.read_node(*n));
+            }
+            Some(WayFull { way, nodes })
+        } else {
+            None
+        }
+    }
+
+    fn read_relation_full(&mut self, id: u64, prev_relations: &[u64]) -> Option<RelationFull> {
+        if prev_relations.contains(&id) {
+            println!("Detected relation recursion on id={id} - {prev_relations:?}",);
+            return None;
+        }
+        let relation = self.read_relation(id);
+        if let Some(relation) = relation {
+            let mut members: Vec<ElementFull> = Vec::with_capacity(relation.members.len());
+
+            for m in &relation.members {
+                match m.type_.as_str() {
+                    "node" => members.push(ElementFull::Node(self.read_node(m.ref_))),
+                    "way" => members.push(ElementFull::Way(self.read_way_full(m.ref_))),
+                    "relation" => {
+                        let mut prev_relations = prev_relations.to_owned();
+                        prev_relations.push(id);
+                        members.push(ElementFull::Relation(
+                            self.read_relation_full(m.ref_, &prev_relations),
+                        ));
+                    }
+                    t => panic!("{t} not expected"),
+                };
+            }
+            Some(RelationFull { relation, members })
+        } else {
+            None
+        }
+    }
 }
 
 pub trait OsmWriter {
@@ -249,5 +307,58 @@ impl Error for NotSupportedFileType {}
 impl fmt::Display for NotSupportedFileType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "File {} is not supported", self.filename)
+    }
+}
+
+impl ElementFull {
+    fn fmt_inners(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
+        match self {
+            ElementFull::Node(n) => {
+                if let Some(n) = n {
+                    writeln!(f, "{} node {:?}", " ".repeat(indent), &n.id)?;
+                } else {
+                    writeln!(f, "{} node missing", " ".repeat(indent))?;
+                }
+            }
+            ElementFull::Way(w) => {
+                if let Some(w) = w {
+                    writeln!(f, "{} way  {:?}", " ".repeat(indent), &w.way.id)?;
+                    for n in &w.nodes {
+                        if let Some(n) = n {
+                            writeln!(f, "{} node {:?}", " ".repeat(indent + 2), &n.id)?;
+                        } else {
+                            writeln!(f, "{} node missing", " ".repeat(indent + 2))?;
+                        }
+                    }
+                } else {
+                    writeln!(f, "{} way  missing", " ".repeat(indent))?;
+                }
+            }
+            ElementFull::Relation(r) => {
+                if let Some(r) = r {
+                    r.fmt_inners(f, indent)?;
+                } else {
+                    writeln!(f, "{} relation missing", " ".repeat(indent))?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl RelationFull {
+    fn fmt_inners(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
+        writeln!(f, "{} relation {:?}", " ".repeat(indent), &self.relation.id)?;
+        for i in &self.members {
+            i.fmt_inners(f, indent + 2)?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for RelationFull {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_inners(f, 0)?;
+        Ok(())
     }
 }

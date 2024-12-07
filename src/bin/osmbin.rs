@@ -10,6 +10,8 @@ struct Args {
     pub dir: String,
     #[clap(flatten)]
     command: Command,
+    #[arg(long, help = "Verbose mode")]
+    pub verbose: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -51,7 +53,17 @@ fn main() {
             "node" => println!("{:?}", osmbin.read_node(id)),
             "way" => println!("{:?}", osmbin.read_way(id)),
             "relation" => println!("{:?}", osmbin.read_relation(id)),
-            "relation_full" => (),
+            "relation_full" => {
+                let relation = osmbin.read_relation_full(id, &[]);
+                if let Some(relation) = relation {
+                    println!("{} members", relation.members.len());
+                    if args.verbose {
+                        println!("{relation:?}");
+                    }
+                } else {
+                    println!("Relation not found");
+                }
+            }
             _ => panic!("--read option {elem} not recognized"),
         };
     }
