@@ -54,6 +54,13 @@ impl<RW: Read + Write + Seek> BufIO<RW> {
             BufIO::Writer(w) => w.capacity(),
         }
     }
+
+    pub fn seek_relative(&mut self, offset: i64) -> io::Result<()> {
+        match self {
+            BufIO::Reader(r) => r.seek_relative(offset),
+            BufIO::Writer(w) => w.seek_relative(offset),
+        }
+    }
 }
 
 pub struct BufReaderWriterRand<RW: Read + Write + Seek> {
