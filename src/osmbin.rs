@@ -250,9 +250,22 @@ impl Drop for OsmBin {
 
 impl OsmReader for OsmBin {
     fn read_node(&mut self, id: u64) -> Option<Node> {
-        self.node_crd
-            .seek(SeekFrom::Start(id * 8))
-            .expect("Could not seek");
+        self.stats.num_nodes += 1;
+
+        let node_crd_addr = id * 8;
+
+        let cur_position = self.node_crd.stream_position().unwrap();
+        if cur_position != node_crd_addr {
+            let diff: i64 =
+                i64::try_from(node_crd_addr).unwrap() - i64::try_from(cur_position).unwrap();
+            if diff > 0 && diff < 4096 {
+                let mut vec: Vec<u8> = vec![0; usize::try_from(diff).unwrap()];
+                self.node_crd.read_exact(&mut vec).unwrap();
+            } else {
+                self.node_crd.seek_relative(diff).unwrap();
+                self.stats.num_seek_node_crd += 1;
+            }
+        }
         let mut lat_buffer = [0u8; 4];
         let mut lon_buffer = [0u8; 4];
         let lat_read_count = self.node_crd.read(&mut lat_buffer).expect("Could not read");
@@ -277,9 +290,17 @@ impl OsmReader for OsmBin {
         })
     }
     fn read_way(&mut self, id: u64) -> Option<Way> {
-        self.way_idx
-            .seek(SeekFrom::Start(id * (WAY_PTR_SIZE as u64)))
-            .expect("Could not seek");
+        self.stats.num_ways += 1;
+
+        let way_idx_addr = id * (WAY_PTR_SIZE as u64);
+
+        let cur_position = self.way_idx.stream_position().unwrap();
+        if cur_position != way_idx_addr {
+            let diff: i64 =
+                i64::try_from(way_idx_addr).unwrap() - i64::try_from(cur_position).unwrap();
+            self.way_idx.seek_relative(diff).unwrap();
+            self.stats.num_seek_way_idx += 1;
+        }
         let mut buffer = [0u8; WAY_PTR_SIZE];
         let read_count = self.way_idx.read(&mut buffer).expect("Could not read");
 
@@ -288,9 +309,13 @@ impl OsmReader for OsmBin {
         }
         let way_data_addr = Self::bytes5_to_int(buffer);
 
-        self.way_data
-            .seek(SeekFrom::Start(way_data_addr))
-            .expect("Could not seek");
+        let cur_position = self.way_data.stream_position().unwrap();
+        if cur_position != way_data_addr {
+            let diff: i64 =
+                i64::try_from(way_data_addr).unwrap() - i64::try_from(cur_position).unwrap();
+            self.way_data.seek_relative(diff).unwrap();
+            self.stats.num_seek_way_data += 1;
+        }
         let mut buffer = [0u8; 2];
         let read_count = self.way_data.read(&mut buffer).expect("Could not read");
         if read_count == 0 || buffer == [0u8; 2] {
@@ -317,6 +342,8 @@ impl OsmReader for OsmBin {
         })
     }
     fn read_relation(&mut self, id: u64) -> Option<Relation> {
+        self.stats.num_relations += 1;
+
         let relid_digits = Self::to_digits(id);
         let relid_part0 = Self::join_nums(&relid_digits[0..3]);
         let relid_part1 = Self::join_nums(&relid_digits[3..6]);
