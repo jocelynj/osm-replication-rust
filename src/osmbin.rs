@@ -46,6 +46,9 @@ pub struct OsmBin {
     prev_node_id: u64,
     prev_way_id: u64,
 
+    nodes_cache: HashMap<u64, (i32, i32)>,
+    ways_cache: HashMap<u64, Vec<u64>>,
+
     stats: OsmBinStats,
 }
 
@@ -58,6 +61,8 @@ struct OsmBinStats {
     num_seek_node_crd: u64,
     num_seek_way_idx: u64,
     num_seek_way_data: u64,
+    num_hit_nodes: u64,
+    num_hit_ways: u64,
 }
 
 enum OpenMode {
@@ -114,6 +119,8 @@ impl OsmBin {
             way_data_size,
             prev_node_id: 0,
             prev_way_id: 0,
+            nodes_cache: HashMap::new(),
+            ways_cache: HashMap::new(),
             stats: OsmBinStats {
                 ..Default::default()
             },
@@ -224,12 +231,12 @@ impl OsmBin {
 impl OsmBinStats {
     pub fn print_stats(&mut self) {
         println!(
-            "nodes:     {} ({} seeks)",
-            self.num_nodes, self.num_seek_node_crd,
+            "nodes:     {} ({} seeks) ({} hits)",
+            self.num_nodes, self.num_seek_node_crd, self.num_hit_nodes,
         );
         println!(
-            "ways:      {} ({} + {} seeks)",
-            self.num_ways, self.num_seek_way_idx, self.num_seek_way_data,
+            "ways:      {} ({} + {} seeks) ({} hits)",
+            self.num_ways, self.num_seek_way_idx, self.num_seek_way_data, self.num_hit_ways,
         );
         println!("relations: {}", self.num_relations);
     }
@@ -251,6 +258,17 @@ impl Drop for OsmBin {
 impl OsmReader for OsmBin {
     fn read_node(&mut self, id: u64) -> Option<Node> {
         self.stats.num_nodes += 1;
+
+        if let Some((decimicro_lat, decimicro_lon)) = self.nodes_cache.get(&id) {
+            self.stats.num_hit_nodes += 1;
+            return Some(Node {
+                id,
+                decimicro_lat: *decimicro_lat,
+                decimicro_lon: *decimicro_lon,
+                tags: None,
+                ..Default::default()
+            });
+        }
 
         let node_crd_addr = id * 8;
 
@@ -281,6 +299,8 @@ impl OsmReader for OsmBin {
         let decimicro_lat = Self::bytes4_to_coord(lat_buffer);
         let decimicro_lon = Self::bytes4_to_coord(lon_buffer);
 
+        self.nodes_cache.insert(id, (decimicro_lat, decimicro_lon));
+
         Some(Node {
             id,
             decimicro_lat,
@@ -291,6 +311,16 @@ impl OsmReader for OsmBin {
     }
     fn read_way(&mut self, id: u64) -> Option<Way> {
         self.stats.num_ways += 1;
+
+        if let Some(nodes) = self.ways_cache.get(&id) {
+            self.stats.num_hit_ways += 1;
+            return Some(Way {
+                id,
+                nodes: nodes.clone(),
+                tags: None,
+                ..Default::default()
+            });
+        }
 
         let way_idx_addr = id * (WAY_PTR_SIZE as u64);
 
@@ -333,6 +363,8 @@ impl OsmReader for OsmBin {
             }
             nodes.push(Self::bytes5_to_int(buffer));
         }
+
+        self.ways_cache.insert(id, nodes.clone());
 
         Some(Way {
             id,
@@ -589,38 +621,42 @@ mod tests {
         let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
         osmbin.import(PBF_SAINT_BARTHELEMY).unwrap();
 
-        let node = osmbin.read_node(266053077);
-        assert_eq!(
-            Node {
-                id: 266053077,
-                decimicro_lat: (17.9031745 * 1e7) as i32,
-                decimicro_lon: (-62.8363074 * 1e7) as i32,
-                tags: None,
-                ..Default::default()
-            },
-            node.unwrap()
-        );
+        for _ in 0..5 {
+            // read several times to check cache
 
-        let node = osmbin.read_node(2619283352);
-        assert_eq!(
-            Node {
-                id: 2619283352,
-                decimicro_lat: (17.9005419 * 1e7) as i32,
-                decimicro_lon: (-62.8327042 * 1e7) as i32,
-                tags: None,
-                ..Default::default()
-            },
-            node.unwrap()
-        );
+            let node = osmbin.read_node(266053077);
+            assert_eq!(
+                Node {
+                    id: 266053077,
+                    decimicro_lat: (17.9031745 * 1e7) as i32,
+                    decimicro_lon: (-62.8363074 * 1e7) as i32,
+                    tags: None,
+                    ..Default::default()
+                },
+                node.unwrap()
+            );
 
-        let node = osmbin.read_node(1);
-        assert_eq!(true, node.is_none());
+            let node = osmbin.read_node(2619283352);
+            assert_eq!(
+                Node {
+                    id: 2619283352,
+                    decimicro_lat: (17.9005419 * 1e7) as i32,
+                    decimicro_lon: (-62.8327042 * 1e7) as i32,
+                    tags: None,
+                    ..Default::default()
+                },
+                node.unwrap()
+            );
 
-        let node = osmbin.read_node(266053076);
-        assert_eq!(true, node.is_none());
+            let node = osmbin.read_node(1);
+            assert_eq!(true, node.is_none());
 
-        let node = osmbin.read_node(2619283353);
-        assert_eq!(true, node.is_none());
+            let node = osmbin.read_node(266053076);
+            assert_eq!(true, node.is_none());
+
+            let node = osmbin.read_node(2619283353);
+            assert_eq!(true, node.is_none());
+        }
     }
 
     #[test]
@@ -631,29 +667,34 @@ mod tests {
         let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
         osmbin.import(PBF_SAINT_BARTHELEMY).unwrap();
 
-        let way = osmbin.read_way(24473155);
-        assert_eq!(true, way.is_some());
-        assert_eq!(1665, way.unwrap().nodes.len());
+        for _ in 0..5 {
+            // read several times to check cache
+            let way = osmbin.read_way(24473155);
+            assert_eq!(true, way.is_some());
+            assert_eq!(1665, way.unwrap().nodes.len());
 
-        let way = osmbin.read_way(255316725);
-        assert_eq!(
-            Way {
-                id: 255316725,
-                nodes: vec![2610107905, 2610107903, 2610107901, 2610107902, 2610107904, 2610107905],
-                tags: None,
-                ..Default::default()
-            },
-            way.unwrap()
-        );
+            let way = osmbin.read_way(255316725);
+            assert_eq!(
+                Way {
+                    id: 255316725,
+                    nodes: vec![
+                        2610107905, 2610107903, 2610107901, 2610107902, 2610107904, 2610107905
+                    ],
+                    tags: None,
+                    ..Default::default()
+                },
+                way.unwrap()
+            );
 
-        let way = osmbin.read_way(1);
-        assert_eq!(true, way.is_none());
+            let way = osmbin.read_way(1);
+            assert_eq!(true, way.is_none());
 
-        let way = osmbin.read_way(24473154);
-        assert_eq!(true, way.is_none());
+            let way = osmbin.read_way(24473154);
+            assert_eq!(true, way.is_none());
 
-        let way = osmbin.read_way(255316726);
-        assert_eq!(true, way.is_none());
+            let way = osmbin.read_way(255316726);
+            assert_eq!(true, way.is_none());
+        }
     }
 
     #[test]
