@@ -60,6 +60,7 @@ fn main() {
                     if args.verbose {
                         println!("{relation:?}");
                     }
+                    osmbin.print_stats();
                 } else {
                     println!("Relation not found");
                 }

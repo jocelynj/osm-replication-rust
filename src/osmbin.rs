@@ -46,6 +46,12 @@ pub struct OsmBin {
     prev_node_id: u64,
     prev_way_id: u64,
 
+    stats: OsmBinStats,
+}
+
+#[allow(clippy::struct_field_names)]
+#[derive(Default)]
+struct OsmBinStats {
     num_nodes: u64,
     num_ways: u64,
     num_relations: u64,
@@ -108,12 +114,9 @@ impl OsmBin {
             way_data_size,
             prev_node_id: 0,
             prev_way_id: 0,
-            num_nodes: 0,
-            num_ways: 0,
-            num_relations: 0,
-            num_seek_node_crd: 0,
-            num_seek_way_idx: 0,
-            num_seek_way_data: 0,
+            stats: OsmBinStats {
+                ..Default::default()
+            },
         })
     }
 
@@ -150,6 +153,10 @@ impl OsmBin {
                 _ => panic!("Error with directory {dir}: {error}"),
             },
         };
+    }
+
+    pub fn print_stats(&mut self) {
+        self.stats.print_stats();
     }
 
     fn bytes5_to_int(d: [u8; 5]) -> u64 {
@@ -211,6 +218,20 @@ impl OsmBin {
     fn join_nums(nums: &[u8]) -> String {
         let str_nums: Vec<String> = nums.iter().map(std::string::ToString::to_string).collect();
         str_nums.join("")
+    }
+}
+
+impl OsmBinStats {
+    pub fn print_stats(&mut self) {
+        println!(
+            "nodes:     {} ({} seeks)",
+            self.num_nodes, self.num_seek_node_crd,
+        );
+        println!(
+            "ways:      {} ({} + {} seeks)",
+            self.num_ways, self.num_seek_way_idx, self.num_seek_way_data,
+        );
+        println!("relations: {}", self.num_relations);
     }
 }
 
@@ -338,14 +359,14 @@ impl OsmWriter for OsmBin {
                 self.node_crd.write_all(&vec).unwrap();
             } else {
                 self.node_crd.seek(SeekFrom::Start(node_crd_addr)).unwrap();
-                self.num_seek_node_crd += 1;
+                self.stats.num_seek_node_crd += 1;
             }
             debug_assert_eq!(self.node_crd.stream_position().unwrap(), node_crd_addr);
         }
         self.node_crd.write_all(&lat).unwrap();
         self.node_crd.write_all(&lon).unwrap();
 
-        self.num_nodes += 1;
+        self.stats.num_nodes += 1;
 
         Ok(())
     }
@@ -371,7 +392,7 @@ impl OsmWriter for OsmBin {
         // Try not to seek if not necessary, as seeking flushes write buffer
         if self.way_data.stream_position().unwrap() != way_data_addr {
             self.way_data.seek(SeekFrom::Start(way_data_addr))?;
-            self.num_seek_way_data += 1;
+            self.stats.num_seek_way_data += 1;
         }
         let num_nodes = Self::int_to_bytes2(num_nodes);
         self.way_data.write_all(&num_nodes).unwrap();
@@ -390,7 +411,7 @@ impl OsmWriter for OsmBin {
                 self.way_idx.write_all(&vec).unwrap();
             } else {
                 self.way_idx.seek(SeekFrom::Start(way_idx_addr)).unwrap();
-                self.num_seek_way_idx += 1;
+                self.stats.num_seek_way_idx += 1;
             }
             debug_assert_eq!(self.way_idx.stream_position().unwrap(), way_idx_addr);
         }
@@ -398,7 +419,7 @@ impl OsmWriter for OsmBin {
         self.way_idx.write_all(&buffer).unwrap();
 
         self.way_data_size = cmp::max(self.way_data_size, self.way_data.stream_position().unwrap());
-        self.num_ways += 1;
+        self.stats.num_ways += 1;
 
         Ok(())
     }
@@ -423,21 +444,13 @@ impl OsmWriter for OsmBin {
         let json_data = serde_json::to_string(relation)?;
         fs::write(&rel_path, json_data)?;
 
-        self.num_relations += 1;
+        self.stats.num_relations += 1;
 
         Ok(())
     }
     fn write_end(&mut self, _change: bool) -> Result<(), Box<dyn Error>> {
         println!("Osmbin import finished");
-        println!(
-            "nodes:     {} ({} seeks)",
-            self.num_nodes, self.num_seek_node_crd
-        );
-        println!(
-            "ways:      {} ({} + {} seeks)",
-            self.num_ways, self.num_seek_way_idx, self.num_seek_way_data
-        );
-        println!("relations: {}", self.num_relations);
+        self.stats.print_stats();
         Ok(())
     }
 }
