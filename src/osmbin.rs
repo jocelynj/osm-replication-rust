@@ -278,7 +278,10 @@ impl OsmReader for OsmBin {
                 i64::try_from(node_crd_addr).unwrap() - i64::try_from(cur_position).unwrap();
             if diff > 0 && diff < 4096 {
                 let mut vec: Vec<u8> = vec![0; usize::try_from(diff).unwrap()];
-                self.node_crd.read_exact(&mut vec).unwrap();
+                if self.node_crd.read_exact(&mut vec).is_err() {
+                    self.node_crd.seek_relative(diff).unwrap();
+                    self.stats.num_seek_node_crd += 1;
+                }
             } else {
                 self.node_crd.seek_relative(diff).unwrap();
                 self.stats.num_seek_node_crd += 1;
