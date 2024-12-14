@@ -25,7 +25,7 @@ impl Update {
     pub fn update(dir_osmbin: &str, dir_polygon: &str, dir_diffs: &str, url_diffs: &str) {
         let polys = diffs::Poly::get_poly_from_dir(dir_polygon);
 
-        let state_file = dir_diffs.to_string() + "europe/minute/state.txt";
+        let state_file = dir_diffs.to_string() + "planet/minute/state.txt";
         let cur_state = Self::read_state_from_file(&state_file).unwrap();
 
         let remote_state = url_diffs.to_string() + "state.txt";
@@ -43,8 +43,8 @@ impl Update {
             );
             let n_split = n_split.as_str();
 
-            let orig_state = dir_diffs.to_string() + "europe/minute/" + n_split + ".state.txt";
-            let orig_diff = dir_diffs.to_string() + "europe/minute/" + n_split + ".osc.gz";
+            let orig_state = dir_diffs.to_string() + "planet/minute/" + n_split + ".state.txt";
+            let orig_diff = dir_diffs.to_string() + "planet/minute/" + n_split + ".osc.gz";
             let bbox_state = dir_diffs.to_string() + "bbox/minute/" + n_split + ".state.txt";
             let bbox_diff = dir_diffs.to_string() + "bbox/minute/" + n_split + ".osc.gz";
             let dest_suffix = String::from("minute/") + n_split + ".osc.gz";
