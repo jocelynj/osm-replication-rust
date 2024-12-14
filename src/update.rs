@@ -1,4 +1,5 @@
 use chrono;
+use std::cmp::min;
 use std::error::Error;
 use std::fmt;
 use std::fs;
@@ -22,14 +23,17 @@ macro_rules! printlnt {
 pub struct Update {}
 
 impl Update {
-    pub fn update(dir_osmbin: &str, dir_polygon: &str, dir_diffs: &str, url_diffs: &str) {
+    pub fn update(dir_osmbin: &str, dir_polygon: &str, dir_diffs: &str, url_diffs: &str, max_state: Option<u64>) {
         let polys = diffs::Poly::get_poly_from_dir(dir_polygon);
 
         let state_file = dir_diffs.to_string() + "planet/minute/state.txt";
         let cur_state = Self::read_state_from_file(&state_file).unwrap();
 
         let remote_state = url_diffs.to_string() + "state.txt";
-        let remote_state = Self::read_state_from_url(&remote_state).unwrap();
+        let mut remote_state = Self::read_state_from_url(&remote_state).unwrap();
+        if let Some(s) = max_state {
+            remote_state = min(remote_state, s);
+        }
 
         println!("{cur_state} - {remote_state}");
 

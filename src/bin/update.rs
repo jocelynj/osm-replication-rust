@@ -17,10 +17,12 @@ struct Args {
         default_value = "https://planet.openstreetmap.org/replication/minute/"
     )]
     pub url_diffs: String,
+    #[arg(long, help = "Max state to download")]
+    pub max_state: Option<u64>,
 }
 
 fn main() {
     let args = Args::parse();
 
-    update::Update::update(&args.osmbin, &args.polygons, &args.diffs, &args.url_diffs);
+    update::Update::update(&args.osmbin, &args.polygons, &args.diffs, &args.url_diffs, args.max_state);
 }
