@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::error::Error;
 
 use osm_replication_rust::update;
 
@@ -21,8 +22,17 @@ struct Args {
     pub max_state: Option<u64>,
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    update::Update::update(&args.osmbin, &args.polygons, &args.diffs, &args.url_diffs, args.max_state);
+    match update::Update::update(
+        &args.osmbin,
+        &args.polygons,
+        &args.diffs,
+        &args.url_diffs,
+        args.max_state,
+    ) {
+        Ok(o) => Ok(o),
+        Err(e) => Err(Box::new(e)),
+    }
 }

@@ -1,12 +1,12 @@
+use anstyle;
 use chrono;
 use std::cmp::min;
-use std::error::Error;
-use std::fmt;
 use std::fs;
 use std::io;
 use std::io::{BufWriter, ErrorKind};
 use std::os::unix;
 use std::path::Path;
+use thiserror;
 use ureq;
 
 use crate::diffs;
@@ -23,19 +23,39 @@ macro_rules! printlnt {
 pub struct Update {}
 
 impl Update {
-    pub fn update(dir_osmbin: &str, dir_polygon: &str, dir_diffs: &str, url_diffs: &str, max_state: Option<u64>) {
+    pub fn update(
+        dir_osmbin: &str,
+        dir_polygon: &str,
+        dir_diffs: &str,
+        url_diffs: &str,
+        max_state: Option<u64>,
+    ) -> Result<(), Error> {
         let polys = diffs::Poly::get_poly_from_dir(dir_polygon);
 
         let state_file = dir_diffs.to_string() + "planet/minute/state.txt";
-        let cur_state = Self::read_state_from_file(&state_file).unwrap();
+        let cur_state = match Self::read_state_from_file(&state_file) {
+            Err(e) => {
+                let red = anstyle::Style::new().fg_color(Some(anstyle::AnsiColor::Red.into()));
+                eprintln!("{red}Error: Please put a valid state file on {state_file}{red:#}");
+                return Err(e);
+            }
+            Ok(o) => o,
+        };
 
         let remote_state = url_diffs.to_string() + "state.txt";
-        let mut remote_state = Self::read_state_from_url(&remote_state).unwrap();
+        let mut remote_state = match Self::read_state_from_url(&remote_state) {
+            Err(e) => {
+                let red = anstyle::Style::new().fg_color(Some(anstyle::AnsiColor::Red.into()));
+                eprintln!("{red}Error: Couldn’t download state file from {remote_state}{red:#}");
+                return Err(e);
+            }
+            Ok(o) => o,
+        };
         if let Some(s) = max_state {
             remote_state = min(remote_state, s);
         }
 
-        println!("{cur_state} - {remote_state}");
+        printlnt!("Need to update from {} to {remote_state}", cur_state + 1);
 
         for n in (cur_state + 1)..remote_state {
             printlnt!("{n}");
@@ -104,69 +124,83 @@ impl Update {
             };
             unix::fs::symlink(n_split.to_string() + ".state.txt", state_file).unwrap();
         }
+        Ok(())
     }
 
-    fn read_state_from_file(filename: &str) -> Result<u64, Box<dyn Error>> {
+    fn read_state_from_file(filename: &str) -> Result<u64, Error> {
         let content = match fs::read_to_string(filename) {
             Err(err) if err.kind() == ErrorKind::NotFound => {
-                return Err(Box::new(io::Error::new(
-                    ErrorKind::NotFound,
-                    format!("State file {filename} not found"),
-                )));
+                return Err(Error::StateNotFound(filename.to_string()))
             }
             r => r.unwrap(),
         };
         Self::read_state(&content, filename)
     }
 
-    fn read_state_from_url(url: &str) -> Result<u64, Box<dyn Error>> {
-        let remote_state = ureq::get(url)
+    fn read_state_from_url(url: &str) -> Result<u64, Error> {
+        let remote_state = match ureq::get(url)
             .set("User-Agent", "osm-extract-replication")
             .call()
-            .unwrap();
+        {
+            Err(e) => return Err(Error::Network(Box::new(e))),
+            Ok(o) => o,
+        };
         let remote_state = remote_state.into_string().unwrap();
         Self::read_state(&remote_state, url)
     }
 
-    fn read_state(content: &str, source: &str) -> Result<u64, Box<dyn Error>> {
+    fn read_state(content: &str, source: &str) -> Result<u64, Error> {
         for l in content.lines() {
             if l.starts_with("sequenceNumber=") {
                 return Ok(l.split('=').nth(1).unwrap().parse().unwrap());
             }
         }
-        Err(StateNotFound {
-            filename: source.to_string(),
-        }
-        .into())
+        Err(Error::StateIncorrect(source.to_string()))
     }
 
-    fn download(url: &str, filename: &str) -> Result<(), io::Error> {
+    fn download(url: &str, filename: &str) -> Result<(), Error> {
         match fs::create_dir_all(Path::new(&filename).parent().unwrap()) {
             Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
             r => r.unwrap(),
         };
-        let response = ureq::get(url)
+        let response = match ureq::get(url)
             .set("User-Agent", "osm-extract-replication")
             .call()
-            .unwrap();
+        {
+            Err(e) => return Err(Error::Network(Box::new(e))),
+            Ok(o) => o,
+        };
         let last_modified = response.header("Last-Modified").unwrap();
         let last_modified = chrono::DateTime::parse_from_rfc2822(last_modified).unwrap();
-        let file = fs::File::create(filename)?;
+        let file = match fs::File::create(filename) {
+            Err(e) => return Err(Error::IO(e)),
+            Ok(o) => o,
+        };
         let mut writer = BufWriter::new(file);
-        io::copy(&mut response.into_reader(), &mut writer)?;
+        match io::copy(&mut response.into_reader(), &mut writer) {
+            Err(e) => return Err(Error::IO(e)),
+            Ok(o) => o,
+        };
         drop(writer);
-        let file = fs::File::open(filename)?;
-        file.set_modified(last_modified.into())
+        let file = match fs::File::open(filename) {
+            Err(e) => return Err(Error::IO(e)),
+            Ok(o) => o,
+        };
+        match file.set_modified(last_modified.into()) {
+            Err(e) => Err(Error::IO(e)),
+            Ok(o) => Ok(o),
+        }
     }
 }
 
-#[derive(Debug)]
-pub struct StateNotFound {
-    pub filename: String,
-}
-impl Error for StateNotFound {}
-impl fmt::Display for StateNotFound {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Incorrect state file: {}", self.filename)
-    }
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    IO(#[from] io::Error),
+    #[error(transparent)]
+    Network(#[from] Box<ureq::Error>),
+    #[error("state file {0} not found")]
+    StateNotFound(String),
+    #[error("state file {0} has an incorrect format")]
+    StateIncorrect(String),
 }
