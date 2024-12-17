@@ -6,10 +6,12 @@ use std::fs::File;
 use std::io::ErrorKind;
 use std::os::unix;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use crate::osm::OsmUpdate;
 use crate::osmbin;
+use crate::osmcache::OsmCache;
 use crate::osmxml;
 
 pub struct Poly {
@@ -20,7 +22,8 @@ pub struct Poly {
 }
 
 pub struct Diff {
-    dir_osmbin: String,
+    dir_osmbin: Option<String>,
+    osmcache: Arc<OsmCache>,
     dest_diff_dir: PathBuf,
     dest_diff_file: PathBuf,
     dest_diff_tmp_file: PathBuf,
@@ -30,7 +33,7 @@ pub struct Diff {
 }
 
 impl Diff {
-    pub fn new(
+    pub fn new_osmbin(
         dir_osmbin: &str,
         dest_diff_dir: &str,
         dest_diff_file: &str,
@@ -46,7 +49,8 @@ impl Diff {
             panic!("Filename given should end with '.osc.gz': {dest_diff_file}");
         };
         Diff {
-            dir_osmbin: dir_osmbin.to_string(),
+            dir_osmbin: Some(dir_osmbin.to_string()),
+            osmcache: Arc::default(),
             dest_diff_dir: PathBuf::from(dest_diff_dir),
             dest_diff_file: PathBuf::from(dest_diff_file),
             dest_diff_tmp_file,
@@ -55,6 +59,33 @@ impl Diff {
             dest_state_file,
         }
     }
+    pub fn new_osmcache(
+        osmcache: OsmCache,
+        dest_diff_dir: &str,
+        dest_diff_file: &str,
+        dest_modified_time: SystemTime,
+        orig_state_file: &str,
+    ) -> Diff {
+        let dest_diff_tmp_file;
+        let dest_state_file;
+        if let Some(prefix) = dest_diff_file.strip_suffix(".osc.gz") {
+            dest_diff_tmp_file = PathBuf::from(prefix.to_owned() + "-tmp.osc.gz");
+            dest_state_file = PathBuf::from(prefix.to_owned() + ".state.txt");
+        } else {
+            panic!("Filename given should end with '.osc.gz': {dest_diff_file}");
+        };
+        Diff {
+            dir_osmbin: None,
+            osmcache: Arc::new(osmcache),
+            dest_diff_dir: PathBuf::from(dest_diff_dir),
+            dest_diff_file: PathBuf::from(dest_diff_file),
+            dest_diff_tmp_file,
+            dest_modified_time,
+            orig_state_file: PathBuf::from(orig_state_file),
+            dest_state_file,
+        }
+    }
+
     pub fn generate_diff(
         &self,
         poly: &Poly,
@@ -73,15 +104,27 @@ impl Diff {
             Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
             r => r.unwrap(),
         };
-        let reader = osmbin::OsmBin::new(&self.dir_osmbin).unwrap();
         let dest_diff_tmp = dest_diff_tmp_path.to_str().unwrap();
-        let mut osmxml = osmxml::filter::OsmXmlFilter::new_reader(
-            dest_diff_tmp,
-            reader,
-            poly_file.to_str().unwrap(),
-        )
-        .unwrap();
-        osmxml.update(orig_diff).unwrap();
+        if self.dir_osmbin.is_none() {
+            let reader = self.osmcache.clone();
+            let mut osmxml = osmxml::filter::OsmXmlFilter::new_reader(
+                dest_diff_tmp,
+                reader,
+                poly_file.to_str().unwrap(),
+            )
+            .unwrap();
+            osmxml.update(orig_diff).unwrap();
+        } else {
+            let dir_osmbin: &str = self.dir_osmbin.as_ref().unwrap();
+            let reader = osmbin::OsmBin::new(dir_osmbin).unwrap();
+            let mut osmxml = osmxml::filter::OsmXmlFilter::new_reader(
+                dest_diff_tmp,
+                reader,
+                poly_file.to_str().unwrap(),
+            )
+            .unwrap();
+            osmxml.update(orig_diff).unwrap();
+        };
 
         let dest_state_file = Path::new(&self.dest_diff_dir)
             .join(&poly.hier_name)

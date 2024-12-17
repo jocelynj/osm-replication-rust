@@ -25,7 +25,7 @@ fn main() {
 
     let polys = diffs::Poly::get_poly_from_dir(&args.polygons);
     let dest_modified_time = fs::metadata(&args.source).unwrap().modified().unwrap();
-    let diff = diffs::Diff::new(
+    let diff = diffs::Diff::new_osmbin(
         &args.osmbin,
         &args.dest_dir,
         &args.dest_suffix,
