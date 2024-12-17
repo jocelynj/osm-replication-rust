@@ -66,7 +66,7 @@ pub struct Way {
 }
 
 /// Relation member
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Member {
     /// node/way/relation id
     #[serde(rename = "ref")]
@@ -80,7 +80,7 @@ pub struct Member {
 
 /// Relation
 #[serde_as]
-#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct Relation {
     /// Relation id
     pub id: u64,
