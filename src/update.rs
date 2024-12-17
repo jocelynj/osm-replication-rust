@@ -104,7 +104,10 @@ impl Update {
 
             printlnt!("  diff generation");
             let dest_modified_time = fs::metadata(&orig_diff).unwrap().modified().unwrap();
-            let diff = diffs::Diff::new(
+//            let osmcache = osmxml.get_reader().get_cache();
+//            let diff = diffs::Diff::new_osmcache(
+//                osmcache,
+            let diff = diffs::Diff::new_osmbin(
                 dir_osmbin,
                 dir_diffs,
                 &dest_suffix,

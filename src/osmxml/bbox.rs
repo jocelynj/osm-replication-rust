@@ -125,6 +125,10 @@ where
         self.expand_bbox_relation_id(bbox, relation.id, vec![]);
         self.expand_bbox_relation_only(bbox, relation, &[relation.id]);
     }
+
+    pub fn get_reader(self) -> T {
+        self.reader
+    }
 }
 
 impl<T> OsmWriter for OsmXmlBBox<T>
