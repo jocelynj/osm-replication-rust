@@ -180,12 +180,13 @@ impl Poly {
                 inners.push(Self::get_poly_from_path(&path, None, &hier_name));
             }
         }
+        let none_path = PathBuf::from("None");
         inners.sort_by(|a, b| {
             a.file
                 .as_ref()
-                .unwrap()
+                .unwrap_or(&none_path)
                 .to_str()
-                .cmp(&b.file.as_ref().unwrap().to_str())
+                .cmp(&b.file.as_ref().unwrap_or(&none_path).to_str())
         });
         let name;
         if let Some(ref f) = file {
