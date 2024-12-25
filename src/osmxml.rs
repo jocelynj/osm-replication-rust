@@ -609,6 +609,80 @@ where
                         };
                         target.update_node(&mut node, &curaction)?;
                     }
+                    b"way" => {
+                        let mut id: u64 = 0;
+                        let mut version: Option<NonZeroU64> = None;
+                        let mut timestamp: Option<String> = None;
+                        let mut uid: Option<NonZeroU64> = None;
+                        let mut user: Option<String> = None;
+                        let mut changeset: Option<NonZeroU64> = None;
+                        for a in e.attributes() {
+                            let a = a.unwrap();
+                            let k = a.key.as_ref();
+                            let v = str::from_utf8(&a.value).unwrap();
+
+                            match k {
+                                b"id" => id = v.parse().unwrap(),
+                                b"version" => version = Some(v.parse().unwrap()),
+                                b"timestamp" => timestamp = Some(v.parse().unwrap()),
+                                b"uid" => uid = Some(v.parse().unwrap()),
+                                b"user" => user = Some(v.parse().unwrap()),
+                                b"changeset" => changeset = Some(v.parse().unwrap()),
+                                _ => (),
+                            }
+                        }
+                        tags = Vec::new();
+                        nodes = Vec::new();
+                        let mut way = Way {
+                            id,
+                            nodes: Vec::new(),
+                            tags: None,
+                            version,
+                            timestamp,
+                            uid,
+                            user,
+                            changeset,
+                            ..Default::default()
+                        };
+                        target.update_way(&mut way, &curaction)?;
+                    }
+                    b"relation" => {
+                        let mut id: u64 = 0;
+                        let mut version: Option<NonZeroU64> = None;
+                        let mut timestamp: Option<String> = None;
+                        let mut uid: Option<NonZeroU64> = None;
+                        let mut user: Option<String> = None;
+                        let mut changeset: Option<NonZeroU64> = None;
+                        for a in e.attributes() {
+                            let a = a.unwrap();
+                            let k = a.key.as_ref();
+                            let v = str::from_utf8(&a.value).unwrap();
+
+                            match k {
+                                b"id" => id = v.parse().unwrap(),
+                                b"version" => version = Some(v.parse().unwrap()),
+                                b"timestamp" => timestamp = Some(v.parse().unwrap()),
+                                b"uid" => uid = Some(v.parse().unwrap()),
+                                b"user" => user = Some(v.parse().unwrap()),
+                                b"changeset" => changeset = Some(v.parse().unwrap()),
+                                _ => (),
+                            }
+                        }
+                        tags = Vec::new();
+                        members = Vec::new();
+                        let mut relation = Relation {
+                            id,
+                            members: Vec::new(),
+                            tags: None,
+                            version,
+                            timestamp,
+                            uid,
+                            user,
+                            changeset,
+                            ..Default::default()
+                        };
+                        target.update_relation(&mut relation, &curaction)?;
+                    }
                     b"nd" => {
                         let nd = e
                             .attributes()
