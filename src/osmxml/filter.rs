@@ -160,10 +160,12 @@ impl PolyInfo {
                         "Detected relation recursion on id={} - {:?}",
                         m.ref_, prev_relations
                     );
+                    false
+                } else {
+                    let mut prev_relations = prev_relations.to_owned();
+                    prev_relations.push(m.ref_);
+                    self.relation_in_poly(reader, m.ref_, &prev_relations)
                 }
-                let mut prev_relations = prev_relations.to_owned();
-                prev_relations.push(m.ref_);
-                self.relation_in_poly(reader, m.ref_, &prev_relations)
             }
             _ => panic!("Unsupported relation member: {m:?}"),
         })
