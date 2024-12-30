@@ -226,3 +226,22 @@ impl fmt::Debug for Poly {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_poly_from_dir() {
+        let poly = Poly::get_poly_from_dir("tests/resources/polygons");
+        assert_eq!(poly.name, "");
+        assert_eq!(poly.inners[0].name, "africa");
+        assert_eq!(poly.inners[0].inners[0].name, "");
+        assert_eq!(poly.inners[0].inners[0].inners[0].name, "canarias");
+        assert_eq!(poly.inners[1].name, "europe");
+        assert_eq!(poly.inners[1].inners[0].name, "");
+        assert_eq!(poly.inners[1].inners[0].inners[0].name, "ionian_sea");
+        assert_eq!(poly.inners[1].inners[0].inners[1].name, "north_sea");
+        assert_eq!(poly.inners[1].inners[1].name, "france");
+    }
+}
