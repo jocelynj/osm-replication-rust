@@ -141,9 +141,7 @@ impl OsmBin {
             let f = File::create_new(full_filename);
             match f {
                 Ok(mut file) => {
-                    if filename == WAY_DATA
-                        && file.write(b"--").expect("Could not write to {filename}") != 2
-                    {
+                    if filename == WAY_DATA && file.write_all(b"--").is_err() {
                         panic!("Could not write to {filename}");
                     }
                 }
@@ -518,9 +516,7 @@ impl OsmUpdate for OsmBin {
         if *action == Action::Delete() {
             let empty: Vec<u8> = vec![0; 8];
             self.node_crd.seek(SeekFrom::Start(node.id * 8))?;
-            if self.node_crd.write(&empty).unwrap() != 8 {
-                panic!("Could not clear node id={} to {}", node.id, NODE_CRD);
-            }
+            self.node_crd.write_all(&empty).unwrap();
         } else {
             self.write_node(node)?;
         }
@@ -558,15 +554,11 @@ impl OsmUpdate for OsmBin {
                 .seek(SeekFrom::Start(way_data_addr))
                 .expect("Could not seek");
             let empty = vec![0; 2];
-            if self.way_data.write(&empty).unwrap() != 2 {
-                panic!("Could not clear way id={} to {}", way.id, WAY_DATA);
-            }
+            self.way_data.write_all(&empty).unwrap();
 
             let buffer = vec![0; WAY_PTR_SIZE];
             self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
-            if self.way_idx.write(&buffer).unwrap() != WAY_PTR_SIZE {
-                panic!("Could not clear way id={} to {}", way.id, WAY_IDX);
-            }
+            self.way_idx.write_all(&buffer).unwrap();
         } else {
             self.write_way(way)?;
         }
