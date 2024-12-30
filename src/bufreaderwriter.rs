@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 #![allow(clippy::match_wildcard_for_single_variants)]
 
-use std::io::{self, BufReader, BufWriter, IntoInnerError, Read, Seek, SeekFrom, Write};
+use std::io::{self, BufReader, BufWriter, ErrorKind, IntoInnerError, Read, Seek, SeekFrom, Write};
 
 enum BufIO<RW: Read + Write + Seek> {
     Reader(BufReader<RW>),
@@ -177,6 +177,22 @@ impl<RW: Read + Write + Seek> BufReaderWriterRand<RW> {
     pub fn capacity(&self) -> usize {
         #[allow(clippy::redundant_closure_for_method_calls)]
         self.inner.as_ref().map_or(0, |b| b.capacity())
+    }
+
+    pub fn read_exact_allow_eof(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        match self.read_exact(buf) {
+            Ok(()) => Ok(()),
+            Err(error) => match error.kind() {
+                ErrorKind::UnexpectedEof => {
+                    if buf.iter().all(|e| *e == 0) {
+                        Ok(())
+                    } else {
+                        Err(error)
+                    }
+                }
+                _ => Err(error),
+            },
+        }
     }
 }
 

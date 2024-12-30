@@ -289,14 +289,10 @@ impl OsmReader for OsmBin {
         }
         let mut lat_buffer = [0u8; 4];
         let mut lon_buffer = [0u8; 4];
-        let lat_read_count = self.node_crd.read(&mut lat_buffer).expect("Could not read");
-        let lon_read_count = self.node_crd.read(&mut lon_buffer).expect("Could not read");
+        self.node_crd.read_exact_allow_eof(&mut lat_buffer).unwrap();
+        self.node_crd.read_exact_allow_eof(&mut lon_buffer).unwrap();
 
-        if lat_read_count == 0
-            || lon_read_count == 0
-            || lat_buffer == [0u8; 4]
-            || lon_buffer == [0u8; 4]
-        {
+        if lat_buffer == [0u8; 4] && lon_buffer == [0u8; 4] {
             return None;
         }
         let decimicro_lat = Self::bytes4_to_coord(lat_buffer);
@@ -335,9 +331,9 @@ impl OsmReader for OsmBin {
             self.stats.num_seek_way_idx += 1;
         }
         let mut buffer = [0u8; WAY_PTR_SIZE];
-        let read_count = self.way_idx.read(&mut buffer).expect("Could not read");
+        self.way_idx.read_exact_allow_eof(&mut buffer).unwrap();
 
-        if read_count == 0 || buffer == [0u8; WAY_PTR_SIZE] {
+        if buffer == [0u8; WAY_PTR_SIZE] {
             return None;
         }
         let way_data_addr = Self::bytes5_to_int(buffer);
@@ -350,9 +346,9 @@ impl OsmReader for OsmBin {
             self.stats.num_seek_way_data += 1;
         }
         let mut buffer = [0u8; 2];
-        let read_count = self.way_data.read(&mut buffer).expect("Could not read");
-        if read_count == 0 || buffer == [0u8; 2] {
-            return None;
+        self.way_data.read_exact(&mut buffer).unwrap();
+        if buffer == [0u8; 2] {
+            panic!("Should have gotten way num_nodes for way_id={id}");
         }
         let num_nodes = Self::bytes2_to_int(buffer);
 
@@ -360,9 +356,9 @@ impl OsmReader for OsmBin {
 
         let mut nodes: Vec<u64> = Vec::new();
         for _ in 0..num_nodes {
-            let read_count = self.way_data.read(&mut buffer).expect("Could not read");
-            if read_count == 0 || buffer == [0u8; NODE_ID_SIZE] {
-                return None;
+            self.way_data.read_exact(&mut buffer).unwrap();
+            if buffer == [0u8; NODE_ID_SIZE] {
+                panic!("Should have gotten way node id for way_id={id}");
             }
             nodes.push(Self::bytes5_to_int(buffer));
         }
@@ -536,9 +532,9 @@ impl OsmUpdate for OsmBin {
             let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
             self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
             let mut buffer = [0u8; WAY_PTR_SIZE];
-            let read_count = self.way_idx.read(&mut buffer)?;
+            self.way_idx.read_exact_allow_eof(&mut buffer).unwrap();
 
-            if read_count == 0 || buffer == [0u8; WAY_PTR_SIZE] {
+            if buffer == [0u8; WAY_PTR_SIZE] {
                 return Ok(());
             }
             let way_data_addr = Self::bytes5_to_int(buffer);
@@ -547,9 +543,9 @@ impl OsmUpdate for OsmBin {
                 .seek(SeekFrom::Start(way_data_addr))
                 .expect("Could not seek");
             let mut buffer = [0u8; 2];
-            let read_count = self.way_data.read(&mut buffer).expect("Could not read");
-            if read_count == 0 || buffer == [0u8; 2] {
-                panic!("Should have gotten way data for way_id={}", way.id);
+            self.way_data.read_exact(&mut buffer).unwrap();
+            if buffer == [0u8; 2] {
+                panic!("Should have gotten way num_nodes for way_id={}", way.id);
             }
             let num_nodes = Self::bytes2_to_int(buffer);
 
