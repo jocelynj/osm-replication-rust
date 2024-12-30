@@ -274,13 +274,11 @@ pub trait OsmUpdate: OsmWriter {
     where
         Self: Sized,
     {
-        if filename.ends_with(".pbf") {
-            let mut reader = osmpbf::OsmPbf::new(filename).unwrap();
-            reader.copy_to(self)
-        } else if filename.ends_with(".osm.gz") || filename.ends_with(".osm") {
-            let mut reader = osmxml::OsmXml::new(filename).unwrap();
-            reader.copy_to(self)
-        } else if filename.ends_with(".osc.gz") || filename.ends_with(".osc") {
+        if filename.ends_with(".osm.gz")
+            || filename.ends_with(".osm")
+            || filename.ends_with(".osc.gz")
+            || filename.ends_with(".osc")
+        {
             let mut reader = osmxml::OsmXml::new(filename).unwrap();
             reader.update_to(self)
         } else {
