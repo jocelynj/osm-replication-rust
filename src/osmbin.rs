@@ -603,7 +603,38 @@ mod tests {
     use crate::osm::Member;
 
     const PBF_SAINT_BARTHELEMY: &str = "tests/resources/saint_barthelemy.osm.pbf";
+    const OSM_WAY_666412102: &str = "tests/resources/way-666412102.osm.gz";
     const OSM_RELATION_17170852: &str = "tests/resources/relation-17170852.osm.gz";
+
+    #[macro_export]
+    macro_rules! assert_approx_eq {
+        ($a:expr, $b:expr) => {{
+            let eps = 1.0e-13;
+            let (a, b) = (&$a, &$b);
+            assert!(
+                (*a - *b).abs() < eps,
+                "assertion failed: `(left !== right)` \
+                 (left: `{:?}`, right: `{:?}`, expect diff: `{:?}`, real diff: `{:?}`)",
+                *a,
+                *b,
+                eps,
+                (*a - *b).abs()
+            );
+        }};
+        ($a:expr, $b:expr, $eps:expr) => {{
+            let (a, b) = (&$a, &$b);
+            let eps = $eps;
+            assert!(
+                (*a - *b).abs() < eps,
+                "assertion failed: `(left !== right)` \
+                 (left: `{:?}`, right: `{:?}`, expect diff: `{:?}`, real diff: `{:?}`)",
+                *a,
+                *b,
+                eps,
+                (*a - *b).abs()
+            );
+        }};
+    }
 
     #[test]
     fn read_node() {
@@ -612,9 +643,16 @@ mod tests {
         OsmBin::init(&tmpdir);
         let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
         osmbin.import(PBF_SAINT_BARTHELEMY).unwrap();
+        drop(osmbin);
+        let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
+        osmbin.update(OSM_WAY_666412102).unwrap();
 
-        for _ in 0..5 {
+        for i in 0..5 {
             // read several times to check cache
+            if i == 3 {
+                drop(osmbin);
+                osmbin = OsmBin::new_writer(&tmpdir).unwrap();
+            }
 
             let node = osmbin.read_node(266053077);
             assert_eq!(
@@ -648,6 +686,18 @@ mod tests {
 
             let node = osmbin.read_node(2619283353);
             assert_eq!(true, node.is_none());
+
+            let node = osmbin.read_node(120470298).unwrap();
+            assert_approx_eq!(-47.9975933, node.lat());
+            assert_approx_eq!(-74.2525578, node.lon());
+
+            let node = osmbin.read_node(6239222548).unwrap();
+            assert_approx_eq!(-48.0692340, node.lat());
+            assert_approx_eq!(-74.2305121, node.lon());
+
+            let node = osmbin.read_node(6239224513).unwrap();
+            assert_approx_eq!(-48.0231575, node.lat());
+            assert_approx_eq!(-74.2551240, node.lon());
         }
     }
 
