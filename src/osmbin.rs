@@ -48,9 +48,7 @@ pub struct OsmBin {
     prev_node_id: u64,
     prev_way_id: u64,
 
-    nodes_cache: HashMap<u64, Option<(i32, i32)>>,
-    ways_cache: HashMap<u64, Option<Vec<u64>>>,
-    relations_cache: HashMap<u64, Option<Relation>>,
+    cache: OsmCache,
 
     stats: OsmBinStats,
 }
@@ -123,9 +121,7 @@ impl OsmBin {
             way_data_size,
             prev_node_id: 0,
             prev_way_id: 0,
-            nodes_cache: HashMap::new(),
-            ways_cache: HashMap::new(),
-            relations_cache: HashMap::new(),
+            cache: OsmCache::default(),
             stats: OsmBinStats {
                 ..Default::default()
             },
@@ -231,11 +227,7 @@ impl OsmBin {
     }
 
     pub fn get_cache(&mut self) -> OsmCache {
-        OsmCache::new(
-            mem::take(&mut self.nodes_cache),
-            mem::take(&mut self.ways_cache),
-            mem::take(&mut self.relations_cache),
-        )
+        mem::take(&mut self.cache)
     }
 }
 
@@ -273,18 +265,9 @@ impl OsmReader for OsmBin {
     fn read_node(&mut self, id: u64) -> Option<Node> {
         self.stats.num_nodes += 1;
 
-        if let Some(node) = self.nodes_cache.get(&id) {
+        if self.cache.nodes.contains_key(&id) {
             self.stats.num_hit_nodes += 1;
-            if let Some((decimicro_lat, decimicro_lon)) = node {
-                return Some(Node {
-                    id,
-                    decimicro_lat: *decimicro_lat,
-                    decimicro_lon: *decimicro_lon,
-                    tags: None,
-                    ..Default::default()
-                });
-            }
-            return None;
+            return self.cache.read_node(id);
         }
 
         let node_crd_addr = id * 8;
@@ -310,13 +293,14 @@ impl OsmReader for OsmBin {
         self.node_crd.read_exact_allow_eof(&mut lon_buffer).unwrap();
 
         if lat_buffer == [0u8; 4] && lon_buffer == [0u8; 4] {
-            self.nodes_cache.insert(id, None);
+            self.cache.nodes.insert(id, None);
             return None;
         }
         let decimicro_lat = Self::bytes4_to_coord(lat_buffer);
         let decimicro_lon = Self::bytes4_to_coord(lon_buffer);
 
-        self.nodes_cache
+        self.cache
+            .nodes
             .insert(id, Some((decimicro_lat, decimicro_lon)));
 
         Some(Node {
@@ -330,17 +314,9 @@ impl OsmReader for OsmBin {
     fn read_way(&mut self, id: u64) -> Option<Way> {
         self.stats.num_ways += 1;
 
-        if let Some(nodes) = self.ways_cache.get(&id) {
+        if self.cache.ways.contains_key(&id) {
             self.stats.num_hit_ways += 1;
-            if let Some(nodes) = nodes {
-                return Some(Way {
-                    id,
-                    nodes: nodes.clone(),
-                    tags: None,
-                    ..Default::default()
-                });
-            }
-            return None;
+            return self.cache.read_way(id);
         }
 
         let way_idx_addr = id * (WAY_PTR_SIZE as u64);
@@ -356,7 +332,7 @@ impl OsmReader for OsmBin {
         self.way_idx.read_exact_allow_eof(&mut buffer).unwrap();
 
         if buffer == [0u8; WAY_PTR_SIZE] {
-            self.ways_cache.insert(id, None);
+            self.cache.ways.insert(id, None);
             return None;
         }
         let way_data_addr = Self::bytes5_to_int(buffer);
@@ -386,7 +362,7 @@ impl OsmReader for OsmBin {
             nodes.push(Self::bytes5_to_int(buffer));
         }
 
-        self.ways_cache.insert(id, Some(nodes.clone()));
+        self.cache.ways.insert(id, Some(nodes.clone()));
 
         Some(Way {
             id,
@@ -398,9 +374,9 @@ impl OsmReader for OsmBin {
     fn read_relation(&mut self, id: u64) -> Option<Relation> {
         self.stats.num_relations += 1;
 
-        if let Some(relation) = self.relations_cache.get(&id) {
+        if self.cache.relations.contains_key(&id) {
             self.stats.num_hit_relations += 1;
-            return relation.clone();
+            return self.cache.read_relation(id);
         }
 
         let relid_digits = Self::to_digits(id);
@@ -417,7 +393,7 @@ impl OsmReader for OsmBin {
             Ok(d) => d,
             Err(error) => match error.kind() {
                 ErrorKind::NotFound => {
-                    self.relations_cache.insert(id, None);
+                    self.cache.relations.insert(id, None);
                     return None;
                 }
                 _ => panic!("Error with file {rel_path:?}: {error}"),
@@ -425,7 +401,7 @@ impl OsmReader for OsmBin {
         };
         let u: Relation = serde_json::from_str(rel_data.as_str()).unwrap();
 
-        self.relations_cache.insert(id, Some(u.clone()));
+        self.cache.relations.insert(id, Some(u.clone()));
 
         Some(u)
     }

@@ -6,9 +6,9 @@ use crate::osm::{Node, Relation, Way};
 
 #[derive(Clone, Default)]
 pub struct OsmCache {
-    nodes: HashMap<u64, Option<(i32, i32)>>,
-    ways: HashMap<u64, Option<Vec<u64>>>,
-    relations: HashMap<u64, Option<Relation>>,
+    pub(crate) nodes: HashMap<u64, Option<(i32, i32)>>,
+    pub(crate) ways: HashMap<u64, Option<Vec<u64>>>,
+    pub(crate) relations: HashMap<u64, Option<Relation>>,
 }
 
 impl OsmCache {
