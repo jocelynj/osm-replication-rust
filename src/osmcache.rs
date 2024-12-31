@@ -6,26 +6,26 @@ use crate::osm::{Node, Relation, Way};
 
 #[derive(Clone, Default)]
 pub struct OsmCache {
-    nodes_cache: HashMap<u64, Option<(i32, i32)>>,
-    ways_cache: HashMap<u64, Option<Vec<u64>>>,
-    relations_cache: HashMap<u64, Option<Relation>>,
+    pub(crate) nodes: HashMap<u64, Option<(i32, i32)>>,
+    pub(crate) ways: HashMap<u64, Option<Vec<u64>>>,
+    pub(crate) relations: HashMap<u64, Option<Relation>>,
 }
 
 impl OsmCache {
     pub fn new(
-        nodes_cache: HashMap<u64, Option<(i32, i32)>>,
-        ways_cache: HashMap<u64, Option<Vec<u64>>>,
-        relations_cache: HashMap<u64, Option<Relation>>,
+        nodes: HashMap<u64, Option<(i32, i32)>>,
+        ways: HashMap<u64, Option<Vec<u64>>>,
+        relations: HashMap<u64, Option<Relation>>,
     ) -> OsmCache {
         OsmCache {
-            nodes_cache,
-            ways_cache,
-            relations_cache,
+            nodes,
+            ways,
+            relations,
         }
     }
 
     fn read_node(&self, id: u64) -> Option<Node> {
-        if let Some(node) = self.nodes_cache.get(&id) {
+        if let Some(node) = self.nodes.get(&id) {
             if let Some((decimicro_lat, decimicro_lon)) = node {
                 return Some(Node {
                     id,
@@ -40,7 +40,7 @@ impl OsmCache {
         panic!("Node {id} not found ");
     }
     fn read_way(&self, id: u64) -> Option<Way> {
-        if let Some(nodes) = self.ways_cache.get(&id) {
+        if let Some(nodes) = self.ways.get(&id) {
             if let Some(nodes) = nodes {
                 return Some(Way {
                     id,
@@ -54,7 +54,7 @@ impl OsmCache {
         panic!("Way {id} not found ");
     }
     fn read_relation(&self, id: u64) -> Option<Relation> {
-        if let Some(relation) = self.relations_cache.get(&id) {
+        if let Some(relation) = self.relations.get(&id) {
             return relation.clone();
         }
         panic!("Relation {id} not found ");
