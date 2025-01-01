@@ -77,7 +77,7 @@ impl Diff {
         let dest_diff_tmp = dest_diff_tmp_path.to_str().unwrap();
         let mut osmxml = osmxml::filter::OsmXmlFilter::new_reader(
             dest_diff_tmp,
-            reader,
+            &reader,
             poly_file.to_str().unwrap(),
         )
         .unwrap();

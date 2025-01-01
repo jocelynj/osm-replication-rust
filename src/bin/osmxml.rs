@@ -1,6 +1,7 @@
 use clap::Parser;
 
 use osm_replication_rust::osm::{OsmUpdate, OsmWriter};
+use osm_replication_rust::osmbin;
 use osm_replication_rust::osmxml;
 
 #[derive(Parser, Debug)]
@@ -35,8 +36,9 @@ fn main() {
                 osmxml::bbox::OsmXmlBBox::new_osmbin(&args.dest, &args.osmbin).unwrap();
             osmxml.update(&args.source).unwrap();
         } else if let Some(filter) = args.filter {
+            let osmbin = osmbin::OsmBin::new(&args.osmbin).unwrap();
             let mut osmxml =
-                osmxml::filter::OsmXmlFilter::new_osmbin(&args.dest, &args.osmbin, &filter)
+                osmxml::filter::OsmXmlFilter::new_reader(&args.dest, &osmbin, &filter)
                     .unwrap();
             osmxml.update(&args.source).unwrap();
         } else {

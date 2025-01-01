@@ -6,7 +6,6 @@ use std::io;
 
 use crate::osm::{self, Action, Member, Node, Relation, Way};
 use crate::osm::{OsmReader, OsmUpdate, OsmWriter};
-use crate::osmbin;
 use crate::osmgeom;
 use crate::osmxml::OsmXml;
 
@@ -17,12 +16,12 @@ struct PolyInfo {
     relations_seen_in_poly: HashSet<u64>,
 }
 
-pub struct OsmXmlFilter<T>
+pub struct OsmXmlFilter<'a, T>
 where
     T: OsmReader,
 {
     xmlwriter: OsmXml,
-    reader: T,
+    reader: &'a T,
     poly: PolyInfo,
     poly_buffered: PolyInfo,
 }
@@ -55,43 +54,15 @@ fn buffer_polygon(mp: &MultiPolygon<i64>) -> MultiPolygon<i64> {
     convert_multipolygon_f64_to_i64(&poly_buffered)
 }
 
-impl OsmXmlFilter<osmbin::OsmBin> {
-    pub fn new_osmbin(
-        filename: &str,
-        dir_osmbin: &str,
-        poly_file: &str,
-    ) -> Result<OsmXmlFilter<osmbin::OsmBin>, Box<dyn Error>> {
-        let poly = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
-        let poly_buffered = buffer_polygon(&poly.clone());
-
-        Ok(OsmXmlFilter {
-            xmlwriter: OsmXml::new(filename).unwrap(),
-            reader: osmbin::OsmBin::new(dir_osmbin).unwrap(),
-            poly: PolyInfo {
-                poly,
-                nodes_seen_in_poly: HashSet::new(),
-                ways_seen_in_poly: HashSet::new(),
-                relations_seen_in_poly: HashSet::new(),
-            },
-            poly_buffered: PolyInfo {
-                poly: poly_buffered,
-                nodes_seen_in_poly: HashSet::new(),
-                ways_seen_in_poly: HashSet::new(),
-                relations_seen_in_poly: HashSet::new(),
-            },
-        })
-    }
-}
-
-impl<T> OsmXmlFilter<T>
+impl<'a, T> OsmXmlFilter<'a, T>
 where
     T: OsmReader,
 {
     pub fn new_reader(
         filename: &str,
-        reader: T,
+        reader: &'a T,
         poly_file: &str,
-    ) -> Result<OsmXmlFilter<T>, Box<dyn Error>> {
+    ) -> Result<OsmXmlFilter<'a, T>, Box<dyn Error>> {
         let poly = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
         let poly_buffered = buffer_polygon(&poly.clone());
 
@@ -115,7 +86,7 @@ where
 }
 
 impl PolyInfo {
-    fn node_in_poly<T: OsmReader>(&mut self, reader: &mut T, id: u64) -> bool {
+    fn node_in_poly<T: OsmReader>(&mut self, reader: &T, id: u64) -> bool {
         if self.nodes_seen_in_poly.contains(&id) {
             return true;
         }
@@ -129,10 +100,10 @@ impl PolyInfo {
         }
         false
     }
-    fn nodes_in_poly<T: OsmReader>(&mut self, reader: &mut T, nodes: &[u64]) -> bool {
+    fn nodes_in_poly<T: OsmReader>(&mut self, reader: &T, nodes: &[u64]) -> bool {
         nodes.iter().any(|n| self.node_in_poly(reader, *n))
     }
-    fn way_in_poly<T: OsmReader>(&mut self, reader: &mut T, id: u64) -> bool {
+    fn way_in_poly<T: OsmReader>(&mut self, reader: &T, id: u64) -> bool {
         if self.ways_seen_in_poly.contains(&id) {
             return true;
         }
@@ -147,7 +118,7 @@ impl PolyInfo {
     }
     fn members_in_poly<T: OsmReader>(
         &mut self,
-        reader: &mut T,
+        reader: &T,
         members: &[Member],
         prev_relations: &[u64],
     ) -> bool {
@@ -172,7 +143,7 @@ impl PolyInfo {
     }
     fn relation_in_poly<T: OsmReader>(
         &mut self,
-        reader: &mut T,
+        reader: &T,
         id: u64,
         prev_relations: &[u64],
     ) -> bool {
@@ -190,7 +161,7 @@ impl PolyInfo {
     }
 }
 
-impl<T> OsmWriter for OsmXmlFilter<T>
+impl<T> OsmWriter for OsmXmlFilter<'_, T>
 where
     T: OsmReader,
 {
@@ -210,14 +181,14 @@ where
         self.xmlwriter.write_end(change)
     }
 }
-impl<T> OsmUpdate for OsmXmlFilter<T>
+impl<T> OsmUpdate for OsmXmlFilter<'_, T>
 where
     T: OsmReader,
 {
     fn update_node(&mut self, node: &mut Node, action: &Action) -> Result<(), io::Error> {
         let point = point!(x: i64::from(node.decimicro_lon), y: i64::from(node.decimicro_lat));
         let in_poly_buffered = point.intersects(&self.poly_buffered.poly)
-            || self.poly_buffered.node_in_poly(&mut self.reader, node.id);
+            || self.poly_buffered.node_in_poly(self.reader, node.id);
         if in_poly_buffered {
             if point.intersects(&self.poly.poly) {
                 self.poly.nodes_seen_in_poly.insert(node.id);
@@ -240,15 +211,15 @@ where
             false
         };
         if inside_bbox {
-            if self.poly.nodes_in_poly(&mut self.reader, &way.nodes) {
+            if self.poly.nodes_in_poly(self.reader, &way.nodes) {
                 self.poly.ways_seen_in_poly.insert(way.id);
                 self.poly_buffered.ways_seen_in_poly.insert(way.id);
                 self.xmlwriter.write_action_start(action);
                 self.write_way(way)?;
             } else if self
                 .poly_buffered
-                .nodes_in_poly(&mut self.reader, &way.nodes)
-                || self.poly_buffered.way_in_poly(&mut self.reader, way.id)
+                .nodes_in_poly(self.reader, &way.nodes)
+                || self.poly_buffered.way_in_poly(self.reader, way.id)
             {
                 self.poly_buffered.ways_seen_in_poly.insert(way.id);
                 self.xmlwriter.write_action_start(&Action::Delete());
@@ -271,7 +242,7 @@ where
         if inside_bbox {
             if self
                 .poly
-                .members_in_poly(&mut self.reader, &relation.members, &[])
+                .members_in_poly(self.reader, &relation.members, &[])
             {
                 self.poly.relations_seen_in_poly.insert(relation.id);
                 self.poly_buffered
@@ -281,10 +252,10 @@ where
                 self.write_relation(relation)?;
             } else if self
                 .poly_buffered
-                .members_in_poly(&mut self.reader, &relation.members, &[])
+                .members_in_poly(self.reader, &relation.members, &[])
                 || self
                     .poly_buffered
-                    .relation_in_poly(&mut self.reader, relation.id, &[])
+                    .relation_in_poly(self.reader, relation.id, &[])
             {
                 self.poly_buffered
                     .relations_seen_in_poly
@@ -351,16 +322,16 @@ mod tests {
         }
     }
 
-    fn new_mockreader(
+    fn new_mockreader<'a>(
         filename: &str,
-        reader: MockReader,
+        reader: &'a MockReader,
         poly_file: &str,
-    ) -> OsmXmlFilter<MockReader> {
+    ) -> OsmXmlFilter<'a, MockReader> {
         let poly = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
         let poly_buffered = buffer_polygon(&poly.clone());
         OsmXmlFilter {
             xmlwriter: OsmXml::new(filename).unwrap(),
-            reader: reader,
+            reader: &reader,
             poly: PolyInfo {
                 poly,
                 nodes_seen_in_poly: HashSet::new(),
@@ -384,7 +355,7 @@ mod tests {
         let src = String::from("tests/resources/saint_barthelemy.bbox.osc.gz");
         let poly = String::from("tests/resources/saint_barthelemy.poly");
         let dest = tempfile::NamedTempFile::new().unwrap();
-        let mut osmxmlfilter = new_mockreader(dest.path().to_str().unwrap(), reader, &poly);
+        let mut osmxmlfilter = new_mockreader(dest.path().to_str().unwrap(), &reader, &poly);
         osmxmlfilter.update(&src).unwrap();
 
         assert_eq!(50, osmxmlfilter.reader.num_read_nodes.get());
