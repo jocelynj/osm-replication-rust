@@ -183,11 +183,11 @@ pub enum Action {
 }
 
 pub trait OsmReader {
-    fn read_node(&mut self, id: u64) -> Option<Node>;
-    fn read_way(&mut self, id: u64) -> Option<Way>;
-    fn read_relation(&mut self, id: u64) -> Option<Relation>;
+    fn read_node(&self, id: u64) -> Option<Node>;
+    fn read_way(&self, id: u64) -> Option<Way>;
+    fn read_relation(&self, id: u64) -> Option<Relation>;
 
-    fn read_way_full(&mut self, id: u64) -> Option<WayFull> {
+    fn read_way_full(&self, id: u64) -> Option<WayFull> {
         let way = self.read_way(id);
         if let Some(way) = way {
             let mut nodes: Vec<Option<Node>> = Vec::with_capacity(way.nodes.len());
@@ -200,7 +200,7 @@ pub trait OsmReader {
         }
     }
 
-    fn read_relation_full(&mut self, id: u64, prev_relations: &[u64]) -> Option<RelationFull> {
+    fn read_relation_full(&self, id: u64, prev_relations: &[u64]) -> Option<RelationFull> {
         if prev_relations.contains(&id) {
             println!("Detected relation recursion on id={id} - {prev_relations:?}",);
             return None;

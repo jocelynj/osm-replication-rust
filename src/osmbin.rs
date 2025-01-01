@@ -1,4 +1,5 @@
 use serde_json;
+use std::cell::{Cell, RefCell};
 use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
@@ -34,9 +35,9 @@ pub const WAY_PTR_SIZE: usize = 5;
 ///   (each using [`NODE_ID_SIZE`] bytes). File is indexed by pointer given by `way.idx`.
 pub struct OsmBin {
     dir: String,
-    node_crd: bufreaderwriter::BufReaderWriterRand<File>,
-    way_idx: bufreaderwriter::BufReaderWriterRand<File>,
-    way_data: bufreaderwriter::BufReaderWriterRand<File>,
+    node_crd: Cell<bufreaderwriter::BufReaderWriterRand<File>>,
+    way_idx: Cell<bufreaderwriter::BufReaderWriterRand<File>>,
+    way_data: Cell<bufreaderwriter::BufReaderWriterRand<File>>,
     way_free_data: HashMap<u16, Vec<u64>>,
 
     node_crd_init_size: u64,
@@ -46,8 +47,8 @@ pub struct OsmBin {
     prev_node_id: u64,
     prev_way_id: u64,
 
-    nodes_cache: HashMap<u64, (i32, i32)>,
-    ways_cache: HashMap<u64, Vec<u64>>,
+    nodes_cache: RefCell<HashMap<u64, (i32, i32)>>,
+    ways_cache: RefCell<HashMap<u64, Vec<u64>>>,
 
     stats: OsmBinStats,
 }
@@ -55,19 +56,28 @@ pub struct OsmBin {
 #[allow(clippy::struct_field_names)]
 #[derive(Default)]
 struct OsmBinStats {
-    num_nodes: u64,
-    num_ways: u64,
-    num_relations: u64,
-    num_seek_node_crd: u64,
-    num_seek_way_idx: u64,
-    num_seek_way_data: u64,
-    num_hit_nodes: u64,
-    num_hit_ways: u64,
+    num_nodes: Cell<u64>,
+    num_ways: Cell<u64>,
+    num_relations: Cell<u64>,
+    num_seek_node_crd: Cell<u64>,
+    num_seek_way_idx: Cell<u64>,
+    num_seek_way_data: Cell<u64>,
+    num_hit_nodes: Cell<u64>,
+    num_hit_ways: Cell<u64>,
 }
 
 enum OpenMode {
     Read,
     Write,
+}
+
+trait IncrCell {
+    fn incr(&self);
+}
+impl IncrCell for Cell<u64> {
+    fn incr(&self) {
+        self.set(self.get() + 1);
+    }
 }
 
 impl OsmBin {
@@ -85,14 +95,14 @@ impl OsmBin {
         }
         let node_crd = file_options.open(Path::new(dir).join(NODE_CRD))?;
         let node_crd_init_size = node_crd.metadata()?.len();
-        let node_crd = bufreaderwriter::BufReaderWriterRand::new_reader(node_crd);
+        let node_crd = Cell::new(bufreaderwriter::BufReaderWriterRand::new_reader(node_crd));
         let way_idx = file_options.open(Path::new(dir).join(WAY_IDX))?;
         let way_idx_init_size = way_idx.metadata()?.len();
-        let way_idx = bufreaderwriter::BufReaderWriterRand::new_reader(way_idx);
+        let way_idx = Cell::new(bufreaderwriter::BufReaderWriterRand::new_reader(way_idx));
 
         let way_data = file_options.open(Path::new(dir).join(WAY_DATA))?;
         let way_data_size = way_data.metadata()?.len();
-        let way_data = bufreaderwriter::BufReaderWriterRand::new_reader(way_data);
+        let way_data = Cell::new(bufreaderwriter::BufReaderWriterRand::new_reader(way_data));
 
         let way_free = file_options.open(Path::new(dir).join(WAY_FREE))?;
         let way_free = BufReader::new(way_free);
@@ -119,8 +129,8 @@ impl OsmBin {
             way_data_size,
             prev_node_id: 0,
             prev_way_id: 0,
-            nodes_cache: HashMap::new(),
-            ways_cache: HashMap::new(),
+            nodes_cache: RefCell::new(HashMap::new()),
+            ways_cache: RefCell::new(HashMap::new()),
             stats: OsmBinStats {
                 ..Default::default()
             },
@@ -230,13 +240,18 @@ impl OsmBinStats {
     pub fn print_stats(&mut self) {
         println!(
             "nodes:     {} ({} seeks) ({} hits)",
-            self.num_nodes, self.num_seek_node_crd, self.num_hit_nodes,
+            self.num_nodes.get(),
+            self.num_seek_node_crd.get(),
+            self.num_hit_nodes.get(),
         );
         println!(
             "ways:      {} ({} + {} seeks) ({} hits)",
-            self.num_ways, self.num_seek_way_idx, self.num_seek_way_data, self.num_hit_ways,
+            self.num_ways.get(),
+            self.num_seek_way_idx.get(),
+            self.num_seek_way_data.get(),
+            self.num_hit_ways.get(),
         );
-        println!("relations: {}", self.num_relations);
+        println!("relations: {}", self.num_relations.get());
     }
 }
 
@@ -254,11 +269,11 @@ impl Drop for OsmBin {
 }
 
 impl OsmReader for OsmBin {
-    fn read_node(&mut self, id: u64) -> Option<Node> {
-        self.stats.num_nodes += 1;
+    fn read_node(&self, id: u64) -> Option<Node> {
+        self.stats.num_nodes.incr();
 
-        if let Some((decimicro_lat, decimicro_lon)) = self.nodes_cache.get(&id) {
-            self.stats.num_hit_nodes += 1;
+        if let Some((decimicro_lat, decimicro_lon)) = self.nodes_cache.borrow().get(&id) {
+            self.stats.num_hit_nodes.incr();
             return Some(Node {
                 id,
                 decimicro_lat: *decimicro_lat,
@@ -270,25 +285,27 @@ impl OsmReader for OsmBin {
 
         let node_crd_addr = id * 8;
 
-        let cur_position = self.node_crd.stream_position().unwrap();
+        let mut node_crd = self.node_crd.take();
+        let cur_position = node_crd.stream_position().unwrap();
         if cur_position != node_crd_addr {
             let diff: i64 =
                 i64::try_from(node_crd_addr).unwrap() - i64::try_from(cur_position).unwrap();
             if diff > 0 && diff < 4096 {
                 let mut vec: Vec<u8> = vec![0; usize::try_from(diff).unwrap()];
-                if self.node_crd.read_exact(&mut vec).is_err() {
-                    self.node_crd.seek_relative(diff).unwrap();
-                    self.stats.num_seek_node_crd += 1;
+                if node_crd.read_exact(&mut vec).is_err() {
+                    node_crd.seek_relative(diff).unwrap();
+                    self.stats.num_seek_node_crd.incr();
                 }
             } else {
-                self.node_crd.seek_relative(diff).unwrap();
-                self.stats.num_seek_node_crd += 1;
+                node_crd.seek_relative(diff).unwrap();
+                self.stats.num_seek_node_crd.incr();
             }
         }
         let mut lat_buffer = [0u8; 4];
         let mut lon_buffer = [0u8; 4];
-        self.node_crd.read_exact_allow_eof(&mut lat_buffer).unwrap();
-        self.node_crd.read_exact_allow_eof(&mut lon_buffer).unwrap();
+        node_crd.read_exact_allow_eof(&mut lat_buffer).unwrap();
+        node_crd.read_exact_allow_eof(&mut lon_buffer).unwrap();
+        self.node_crd.set(node_crd);
 
         if lat_buffer == [0u8; 4] && lon_buffer == [0u8; 4] {
             return None;
@@ -296,7 +313,9 @@ impl OsmReader for OsmBin {
         let decimicro_lat = Self::bytes4_to_coord(lat_buffer);
         let decimicro_lon = Self::bytes4_to_coord(lon_buffer);
 
-        self.nodes_cache.insert(id, (decimicro_lat, decimicro_lon));
+        self.nodes_cache
+            .borrow_mut()
+            .insert(id, (decimicro_lat, decimicro_lon));
 
         Some(Node {
             id,
@@ -306,11 +325,11 @@ impl OsmReader for OsmBin {
             ..Default::default()
         })
     }
-    fn read_way(&mut self, id: u64) -> Option<Way> {
-        self.stats.num_ways += 1;
+    fn read_way(&self, id: u64) -> Option<Way> {
+        self.stats.num_ways.incr();
 
-        if let Some(nodes) = self.ways_cache.get(&id) {
-            self.stats.num_hit_ways += 1;
+        if let Some(nodes) = self.ways_cache.borrow().get(&id) {
+            self.stats.num_hit_ways.incr();
             return Some(Way {
                 id,
                 nodes: nodes.clone(),
@@ -321,30 +340,33 @@ impl OsmReader for OsmBin {
 
         let way_idx_addr = id * (WAY_PTR_SIZE as u64);
 
-        let cur_position = self.way_idx.stream_position().unwrap();
+        let mut way_idx = self.way_idx.take();
+        let cur_position = way_idx.stream_position().unwrap();
         if cur_position != way_idx_addr {
             let diff: i64 =
                 i64::try_from(way_idx_addr).unwrap() - i64::try_from(cur_position).unwrap();
-            self.way_idx.seek_relative(diff).unwrap();
-            self.stats.num_seek_way_idx += 1;
+            way_idx.seek_relative(diff).unwrap();
+            self.stats.num_seek_way_idx.incr();
         }
         let mut buffer = [0u8; WAY_PTR_SIZE];
-        self.way_idx.read_exact_allow_eof(&mut buffer).unwrap();
+        way_idx.read_exact_allow_eof(&mut buffer).unwrap();
+        self.way_idx.set(way_idx);
 
         if buffer == [0u8; WAY_PTR_SIZE] {
             return None;
         }
         let way_data_addr = Self::bytes5_to_int(buffer);
 
-        let cur_position = self.way_data.stream_position().unwrap();
+        let mut way_data = self.way_data.take();
+        let cur_position = way_data.stream_position().unwrap();
         if cur_position != way_data_addr {
             let diff: i64 =
                 i64::try_from(way_data_addr).unwrap() - i64::try_from(cur_position).unwrap();
-            self.way_data.seek_relative(diff).unwrap();
-            self.stats.num_seek_way_data += 1;
+            way_data.seek_relative(diff).unwrap();
+            self.stats.num_seek_way_data.incr();
         }
         let mut buffer = [0u8; 2];
-        self.way_data.read_exact(&mut buffer).unwrap();
+        way_data.read_exact(&mut buffer).unwrap();
         if buffer == [0u8; 2] {
             panic!("Should have gotten way num_nodes for way_id={id}");
         }
@@ -354,14 +376,15 @@ impl OsmReader for OsmBin {
 
         let mut nodes: Vec<u64> = Vec::new();
         for _ in 0..num_nodes {
-            self.way_data.read_exact(&mut buffer).unwrap();
+            way_data.read_exact(&mut buffer).unwrap();
             if buffer == [0u8; NODE_ID_SIZE] {
                 panic!("Should have gotten way node id for way_id={id}");
             }
             nodes.push(Self::bytes5_to_int(buffer));
         }
+        self.way_data.set(way_data);
 
-        self.ways_cache.insert(id, nodes.clone());
+        self.ways_cache.borrow_mut().insert(id, nodes.clone());
 
         Some(Way {
             id,
@@ -370,8 +393,8 @@ impl OsmReader for OsmBin {
             ..Default::default()
         })
     }
-    fn read_relation(&mut self, id: u64) -> Option<Relation> {
-        self.stats.num_relations += 1;
+    fn read_relation(&self, id: u64) -> Option<Relation> {
+        self.stats.num_relations.incr();
 
         let relid_digits = Self::to_digits(id);
         let relid_part0 = Self::join_nums(&relid_digits[0..3]);
@@ -406,23 +429,25 @@ impl OsmWriter for OsmBin {
         let node_crd_addr = node.id * 8;
 
         // Try not to seek if not necessary, as seeking flushes write buffer
-        let cur_position = self.node_crd.stream_position().unwrap();
+        let mut node_crd = self.node_crd.take();
+        let cur_position = node_crd.stream_position().unwrap();
         if cur_position != node_crd_addr {
             let diff: i64 =
                 i64::try_from(node_crd_addr).unwrap() - i64::try_from(cur_position).unwrap();
             if self.node_crd_init_size < node_crd_addr && diff > 0 && diff < 4096 {
                 let vec: Vec<u8> = vec![0; usize::try_from(diff).unwrap()];
-                self.node_crd.write_all(&vec).unwrap();
+                node_crd.write_all(&vec).unwrap();
             } else {
-                self.node_crd.seek(SeekFrom::Start(node_crd_addr)).unwrap();
-                self.stats.num_seek_node_crd += 1;
+                node_crd.seek(SeekFrom::Start(node_crd_addr)).unwrap();
+                self.stats.num_seek_node_crd.incr();
             }
-            debug_assert_eq!(self.node_crd.stream_position().unwrap(), node_crd_addr);
+            debug_assert_eq!(node_crd.stream_position().unwrap(), node_crd_addr);
         }
-        self.node_crd.write_all(&lat).unwrap();
-        self.node_crd.write_all(&lon).unwrap();
+        node_crd.write_all(&lat).unwrap();
+        node_crd.write_all(&lon).unwrap();
+        self.node_crd.set(node_crd);
 
-        self.stats.num_nodes += 1;
+        self.stats.num_nodes.incr();
 
         Ok(())
     }
@@ -446,36 +471,40 @@ impl OsmWriter for OsmBin {
             .unwrap_or(self.way_data_size);
 
         // Try not to seek if not necessary, as seeking flushes write buffer
-        if self.way_data.stream_position().unwrap() != way_data_addr {
-            self.way_data.seek(SeekFrom::Start(way_data_addr))?;
-            self.stats.num_seek_way_data += 1;
+        let mut way_data = self.way_data.take();
+        if way_data.stream_position().unwrap() != way_data_addr {
+            way_data.seek(SeekFrom::Start(way_data_addr))?;
+            self.stats.num_seek_way_data.incr();
         }
         let num_nodes = Self::int_to_bytes2(num_nodes);
-        self.way_data.write_all(&num_nodes).unwrap();
+        way_data.write_all(&num_nodes).unwrap();
         for n in &way.nodes {
             let node = Self::int_to_bytes5(*n);
-            self.way_data.write_all(&node).unwrap();
+            way_data.write_all(&node).unwrap();
         }
 
         // Try not to seek if not necessary, as seeking flushes write buffer
-        let cur_position = self.way_idx.stream_position().unwrap();
+        let mut way_idx = self.way_idx.take();
+        let cur_position = way_idx.stream_position().unwrap();
         if cur_position != way_idx_addr {
             let diff: i64 =
                 i64::try_from(way_idx_addr).unwrap() - i64::try_from(cur_position).unwrap();
             if self.way_idx_init_size < way_idx_addr && diff > 0 && diff < 4096 {
                 let vec: Vec<u8> = vec![0; usize::try_from(diff).unwrap()];
-                self.way_idx.write_all(&vec).unwrap();
+                way_idx.write_all(&vec).unwrap();
             } else {
-                self.way_idx.seek(SeekFrom::Start(way_idx_addr)).unwrap();
-                self.stats.num_seek_way_idx += 1;
+                way_idx.seek(SeekFrom::Start(way_idx_addr)).unwrap();
+                self.stats.num_seek_way_idx.incr();
             }
-            debug_assert_eq!(self.way_idx.stream_position().unwrap(), way_idx_addr);
+            debug_assert_eq!(way_idx.stream_position().unwrap(), way_idx_addr);
         }
         let buffer = Self::int_to_bytes5(way_data_addr);
-        self.way_idx.write_all(&buffer).unwrap();
+        way_idx.write_all(&buffer).unwrap();
+        self.way_idx.set(way_idx);
 
-        self.way_data_size = cmp::max(self.way_data_size, self.way_data.stream_position().unwrap());
-        self.stats.num_ways += 1;
+        self.way_data_size = cmp::max(self.way_data_size, way_data.stream_position().unwrap());
+        self.way_data.set(way_data);
+        self.stats.num_ways.incr();
 
         Ok(())
     }
@@ -500,7 +529,7 @@ impl OsmWriter for OsmBin {
         let json_data = serde_json::to_string(relation)?;
         fs::write(&rel_path, json_data)?;
 
-        self.stats.num_relations += 1;
+        self.stats.num_relations.incr();
 
         Ok(())
     }
@@ -515,8 +544,10 @@ impl OsmUpdate for OsmBin {
     fn update_node(&mut self, node: &mut Node, action: &Action) -> Result<(), io::Error> {
         if *action == Action::Delete() {
             let empty: Vec<u8> = vec![0; 8];
-            self.node_crd.seek(SeekFrom::Start(node.id * 8))?;
-            self.node_crd.write_all(&empty).unwrap();
+            let mut node_crd = self.node_crd.take();
+            node_crd.seek(SeekFrom::Start(node.id * 8))?;
+            node_crd.write_all(&empty).unwrap();
+            self.node_crd.set(node_crd);
         } else {
             self.write_node(node)?;
         }
@@ -526,20 +557,23 @@ impl OsmUpdate for OsmBin {
     fn update_way(&mut self, way: &mut Way, action: &Action) -> Result<(), io::Error> {
         if *action == Action::Delete() {
             let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
-            self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
+            let mut way_idx = self.way_idx.take();
+            way_idx.seek(SeekFrom::Start(way_idx_addr))?;
             let mut buffer = [0u8; WAY_PTR_SIZE];
-            self.way_idx.read_exact_allow_eof(&mut buffer).unwrap();
+            way_idx.read_exact_allow_eof(&mut buffer).unwrap();
 
             if buffer == [0u8; WAY_PTR_SIZE] {
+                self.way_idx.set(way_idx);
                 return Ok(());
             }
             let way_data_addr = Self::bytes5_to_int(buffer);
 
-            self.way_data
+            let mut way_data = self.way_data.take();
+            way_data
                 .seek(SeekFrom::Start(way_data_addr))
                 .expect("Could not seek");
             let mut buffer = [0u8; 2];
-            self.way_data.read_exact(&mut buffer).unwrap();
+            way_data.read_exact(&mut buffer).unwrap();
             if buffer == [0u8; 2] {
                 panic!("Should have gotten way num_nodes for way_id={}", way.id);
             }
@@ -550,15 +584,17 @@ impl OsmUpdate for OsmBin {
                 .or_default()
                 .push(way_data_addr);
 
-            self.way_data
+            way_data
                 .seek(SeekFrom::Start(way_data_addr))
                 .expect("Could not seek");
             let empty = vec![0; 2];
-            self.way_data.write_all(&empty).unwrap();
+            way_data.write_all(&empty).unwrap();
+            self.way_data.set(way_data);
 
             let buffer = vec![0; WAY_PTR_SIZE];
-            self.way_idx.seek(SeekFrom::Start(way_idx_addr))?;
-            self.way_idx.write_all(&buffer).unwrap();
+            way_idx.seek(SeekFrom::Start(way_idx_addr))?;
+            way_idx.write_all(&buffer).unwrap();
+            self.way_idx.set(way_idx);
         } else {
             self.write_way(way)?;
         }

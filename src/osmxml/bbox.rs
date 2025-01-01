@@ -193,27 +193,29 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
     use tempfile;
 
     use crate::osm::Member;
 
     #[derive(Debug, Default)]
     struct MockReader {
-        num_read_nodes: usize,
-        num_read_ways: usize,
-        num_read_relations: usize,
+        num_read_nodes: Cell<usize>,
+        num_read_ways: Cell<usize>,
+        num_read_relations: Cell<usize>,
     }
     impl OsmReader for MockReader {
-        fn read_node(&mut self, _id: u64) -> Option<Node> {
-            self.num_read_nodes += 1;
+        fn read_node(&self, _id: u64) -> Option<Node> {
+            self.num_read_nodes.set(self.num_read_nodes.get() + 1);
             None
         }
-        fn read_way(&mut self, _id: u64) -> Option<Way> {
-            self.num_read_ways += 1;
+        fn read_way(&self, _id: u64) -> Option<Way> {
+            self.num_read_ways.set(self.num_read_ways.get() + 1);
             None
         }
-        fn read_relation(&mut self, id: u64) -> Option<Relation> {
-            self.num_read_relations += 1;
+        fn read_relation(&self, id: u64) -> Option<Relation> {
+            self.num_read_relations
+                .set(self.num_read_relations.get() + 1);
 
             // Recursion between relations 7801 and 7802
             if id == 7802 {
@@ -262,8 +264,8 @@ mod tests {
         let mut osmxmlbbox = new_mockreader(dest.path().to_str().unwrap(), reader);
         osmxmlbbox.update(&src).unwrap();
 
-        assert_eq!(33, osmxmlbbox.reader.num_read_nodes);
-        assert_eq!(7, osmxmlbbox.reader.num_read_ways);
-        assert_eq!(9, osmxmlbbox.reader.num_read_relations);
+        assert_eq!(33, osmxmlbbox.reader.num_read_nodes.get());
+        assert_eq!(7, osmxmlbbox.reader.num_read_ways.get());
+        assert_eq!(9, osmxmlbbox.reader.num_read_relations.get());
     }
 }

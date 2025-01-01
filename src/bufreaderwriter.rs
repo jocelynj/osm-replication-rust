@@ -196,6 +196,15 @@ impl<RW: Read + Write + Seek> BufReaderWriterRand<RW> {
     }
 }
 
+impl<RW: Read + Write + Seek> Default for BufReaderWriterRand<RW> {
+    fn default() -> Self {
+        Self {
+            inner: None,
+            capacity: None,
+        }
+    }
+}
+
 impl<RW: Read + Write + Seek> Read for BufReaderWriterRand<RW> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self.inner.as_mut().unwrap() {
