@@ -55,9 +55,17 @@ impl Update {
             remote_state = min(remote_state, s);
         }
 
-        printlnt!("Need to update from {} to {remote_state}", cur_state + 1);
+        if cur_state == remote_state {
+            printlnt!("No update necessary from {}", cur_state);
+            return Ok(());
+        } else if (cur_state + 1) == remote_state {
+            printlnt!("Need to update {}", cur_state + 1);
+        } else {
+            printlnt!("Need to update from {} to {remote_state}", cur_state + 1);
+        }
 
-        for n in (cur_state + 1)..remote_state {
+        #[allow(clippy::range_plus_one)]
+        for n in (cur_state + 1)..(remote_state + 1) {
             printlnt!("{n}");
             let n_split = format!(
                 "{:03}/{:03}/{:03}",
