@@ -6,6 +6,8 @@ use std::io;
 use std::io::{BufWriter, ErrorKind};
 use std::os::unix;
 use std::path::Path;
+use std::thread;
+use std::time;
 use thiserror;
 use ureq;
 
@@ -172,13 +174,27 @@ impl Update {
             Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
             r => r.unwrap(),
         };
-        let response = match ureq::get(url)
-            .set("User-Agent", "osm-extract-replication")
-            .call()
-        {
-            Err(e) => return Err(Error::Network(Box::new(e))),
-            Ok(o) => o,
-        };
+        let response;
+        let mut i = 0;
+        loop {
+            match ureq::get(url)
+                .set("User-Agent", "osm-extract-replication")
+                .call()
+            {
+                Err(e) => {
+                    if i == 4 {
+                        return Err(Error::Network(Box::new(e)));
+                    }
+                }
+                Ok(o) => {
+                    response = o;
+                    break;
+                }
+            };
+            println!("Error when fetching {url} - will retry again");
+            thread::sleep(time::Duration::from_secs(1));
+            i += 1;
+        }
         let last_modified = response.header("Last-Modified").unwrap();
         let last_modified = chrono::DateTime::parse_from_rfc2822(last_modified).unwrap();
         let file = match fs::File::create(filename) {
