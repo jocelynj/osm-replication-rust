@@ -11,6 +11,7 @@ license = "MIT"
 anstyle = "1.0.10"
 chrono = "0.4.38"
 clap = { version = "4.5.21", features = ["derive"] }
+fd-lock = "4.0.2"
 flate2 = "1.0.35"
 geo = "0.29.2"
 geos = { version = "9.0.0", features = ["geo"] }

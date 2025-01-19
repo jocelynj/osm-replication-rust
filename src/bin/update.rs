@@ -1,5 +1,7 @@
 use clap::Parser;
+use fd_lock::RwLock;
 use std::error::Error;
+use std::fs::File;
 
 use osm_replication_rust::update;
 
@@ -25,13 +27,29 @@ struct Args {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    match update::Update::update(
+    let lock_file = String::from(&args.diffs) + "/../update.lock";
+    let mut f = RwLock::new(
+        File::options()
+            .append(true)
+            .create(true)
+            .open(lock_file.clone())
+            .unwrap(),
+    );
+    let lock = match f.try_write() {
+        Ok(o) => o,
+        Err(e) => panic!("Couldn't take lock {lock_file}: {e}"),
+    };
+
+    let result = update::Update::update(
         &args.osmbin,
         &args.polygons,
         &args.diffs,
         &args.url_diffs,
         args.max_state,
-    ) {
+    );
+    drop(lock);
+
+    match result {
         Ok(o) => Ok(o),
         Err(e) => Err(Box::new(e)),
     }
