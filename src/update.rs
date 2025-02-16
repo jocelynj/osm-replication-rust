@@ -175,7 +175,7 @@ impl Update {
             r => r.unwrap(),
         };
         let response;
-        let mut i = 0;
+        let mut i: u8 = 0;
         loop {
             match ureq::get(url)
                 .header("User-Agent", "osm-extract-replication")
