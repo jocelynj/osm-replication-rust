@@ -129,7 +129,7 @@ impl OsmBin {
     }
 
     pub fn init(dir: &str) {
-        match fs::create_dir(dir) {
+        match fs::create_dir_all(dir) {
             Ok(()) => (),
             Err(error) => match error.kind() {
                 ErrorKind::AlreadyExists => (),
@@ -152,7 +152,7 @@ impl OsmBin {
                 },
             };
         }
-        match fs::create_dir(Path::new(dir).join("relation")) {
+        match fs::create_dir_all(Path::new(dir).join("relation")) {
             Ok(()) => (),
             Err(error) => match error.kind() {
                 ErrorKind::AlreadyExists => (),
