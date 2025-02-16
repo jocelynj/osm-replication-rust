@@ -150,13 +150,13 @@ impl Update {
 
     fn read_state_from_url(url: &str) -> Result<u64, Error> {
         let remote_state = match ureq::get(url)
-            .set("User-Agent", "osm-extract-replication")
+            .header("User-Agent", "osm-extract-replication")
             .call()
         {
             Err(e) => return Err(Error::Network(Box::new(e))),
             Ok(o) => o,
         };
-        let remote_state = remote_state.into_string().unwrap();
+        let remote_state = remote_state.into_body().read_to_string().unwrap();
         Self::read_state(&remote_state, url)
     }
 
@@ -178,7 +178,7 @@ impl Update {
         let mut i = 0;
         loop {
             match ureq::get(url)
-                .set("User-Agent", "osm-extract-replication")
+                .header("User-Agent", "osm-extract-replication")
                 .call()
             {
                 Err(e) => {
@@ -195,14 +195,19 @@ impl Update {
             thread::sleep(time::Duration::from_secs(1));
             i += 1;
         }
-        let last_modified = response.header("Last-Modified").unwrap();
+        let last_modified = response
+            .headers()
+            .get("Last-Modified")
+            .unwrap()
+            .to_str()
+            .unwrap();
         let last_modified = chrono::DateTime::parse_from_rfc2822(last_modified).unwrap();
         let file = match fs::File::create(filename) {
             Err(e) => return Err(Error::IO(e)),
             Ok(o) => o,
         };
         let mut writer = BufWriter::new(file);
-        match io::copy(&mut response.into_reader(), &mut writer) {
+        match io::copy(&mut response.into_body().into_reader(), &mut writer) {
             Err(e) => return Err(Error::IO(e)),
             Ok(o) => o,
         };
