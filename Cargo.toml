@@ -14,8 +14,8 @@ clap = { version = "4.5.21", features = ["derive"] }
 fd-lock = "4.0.2"
 flate2 = "1.0.35"
 geo = "0.29.2"
-geos = { version = "9.0.0", features = ["geo"] }
-osmpbfreader = "0.16.1"
+geos = { version = "10.0.0", features = ["geo"] }
+osmpbfreader = "0.17.0"
 quick-xml = "0.37.1"
 rayon = "1.10.0"
 serde = { version = "1.0.215", features = ["derive"] }
