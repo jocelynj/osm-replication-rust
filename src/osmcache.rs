@@ -84,3 +84,142 @@ impl OsmReader for Arc<OsmCache> {
         OsmCache::read_relation(self.as_ref(), id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rel_23() -> Relation {
+        Relation {
+            id: 23,
+            tags: Some(vec![
+                (String::from("a"), String::from("1")),
+                (String::from("b"), String::from("2")),
+            ]),
+            ..Default::default()
+        }
+    }
+
+    fn init_osmcache() -> OsmCache {
+        let nodes = HashMap::from([(1, None), (2, Some((4, 5))), (3, Some((-4, -5)))]);
+        let ways = HashMap::from([
+            (11, None),
+            (12, Some(vec![1, 2, 3])),
+            (13, Some(vec![4, 5, 4])),
+        ]);
+
+        let relations = HashMap::from([
+            (21, None),
+            (
+                22,
+                Some(Relation {
+                    id: 22,
+                    ..Default::default()
+                }),
+            ),
+            (23, Some(rel_23())),
+        ]);
+
+        OsmCache::new(nodes, ways, relations)
+    }
+
+    #[test]
+    fn read_node() {
+        let osmcache = init_osmcache();
+
+        let node = osmcache.read_node(1);
+        assert_eq!(None, node);
+
+        let node = osmcache.read_node(2);
+        assert_eq!(
+            Some(Node {
+                id: 2,
+                decimicro_lat: 4,
+                decimicro_lon: 5,
+                ..Default::default()
+            }),
+            node
+        );
+
+        let node = osmcache.read_node(3);
+        assert_eq!(
+            Some(Node {
+                id: 3,
+                decimicro_lat: -4,
+                decimicro_lon: -5,
+                ..Default::default()
+            }),
+            node
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn read_node_panic() {
+        let osmcache = init_osmcache();
+        osmcache.read_node(4);
+    }
+
+    #[test]
+    fn read_way() {
+        let osmcache = init_osmcache();
+
+        let way = osmcache.read_way(11);
+        assert_eq!(None, way);
+
+        let way = osmcache.read_way(12);
+        assert_eq!(
+            Some(Way {
+                id: 12,
+                nodes: vec![1, 2, 3],
+                ..Default::default()
+            }),
+            way
+        );
+
+        let way = osmcache.read_way(13);
+        assert_eq!(
+            Some(Way {
+                id: 13,
+                nodes: vec![4, 5, 4],
+                ..Default::default()
+            }),
+            way
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn read_way_panic() {
+        let osmcache = init_osmcache();
+        osmcache.read_way(14);
+    }
+
+    #[test]
+    fn read_relation() {
+        let osmcache = init_osmcache();
+
+        let relation = osmcache.read_relation(21);
+        assert_eq!(None, relation);
+
+        let relation = osmcache.read_relation(22);
+        assert_eq!(
+            Some(Relation {
+                id: 22,
+                ..Default::default()
+            }),
+            relation
+        );
+
+        let relation = osmcache.read_relation(23);
+        assert_eq!(Some(rel_23()), relation);
+        assert_eq!(23, relation.unwrap().id);
+    }
+
+    #[test]
+    #[should_panic]
+    fn read_relation_panic() {
+        let osmcache = init_osmcache();
+        osmcache.read_relation(24);
+    }
+}
