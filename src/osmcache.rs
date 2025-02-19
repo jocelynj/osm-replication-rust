@@ -1,21 +1,23 @@
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 use crate::osm::OsmReader;
 use crate::osm::{Node, Relation, Way};
 
+type OsmCacheHashMap<K, V> = FxHashMap<K, V>;
+
 #[derive(Clone, Default)]
 pub struct OsmCache {
-    pub(crate) nodes: HashMap<u64, Option<(i32, i32)>>,
-    pub(crate) ways: HashMap<u64, Option<Vec<u64>>>,
-    pub(crate) relations: HashMap<u64, Option<Relation>>,
+    pub(crate) nodes: OsmCacheHashMap<u64, Option<(i32, i32)>>,
+    pub(crate) ways: OsmCacheHashMap<u64, Option<Vec<u64>>>,
+    pub(crate) relations: OsmCacheHashMap<u64, Option<Relation>>,
 }
 
 impl OsmCache {
     pub fn new(
-        nodes: HashMap<u64, Option<(i32, i32)>>,
-        ways: HashMap<u64, Option<Vec<u64>>>,
-        relations: HashMap<u64, Option<Relation>>,
+        nodes: OsmCacheHashMap<u64, Option<(i32, i32)>>,
+        ways: OsmCacheHashMap<u64, Option<Vec<u64>>>,
+        relations: OsmCacheHashMap<u64, Option<Relation>>,
     ) -> OsmCache {
         OsmCache {
             nodes,
@@ -101,14 +103,14 @@ mod tests {
     }
 
     fn init_osmcache() -> OsmCache {
-        let nodes = HashMap::from([(1, None), (2, Some((4, 5))), (3, Some((-4, -5)))]);
-        let ways = HashMap::from([
+        let nodes = OsmCacheHashMap::from_iter([(1, None), (2, Some((4, 5))), (3, Some((-4, -5)))]);
+        let ways = OsmCacheHashMap::from_iter([
             (11, None),
             (12, Some(vec![1, 2, 3])),
             (13, Some(vec![4, 5, 4])),
         ]);
 
-        let relations = HashMap::from([
+        let relations = OsmCacheHashMap::from_iter([
             (21, None),
             (
                 22,
