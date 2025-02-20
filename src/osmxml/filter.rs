@@ -61,7 +61,7 @@ impl OsmXmlFilter<osmbin::OsmBin> {
         dir_osmbin: &str,
         poly_file: &str,
     ) -> Result<OsmXmlFilter<osmbin::OsmBin>, Box<dyn Error>> {
-        let poly = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
+        let poly = osmgeom::read_multipolygon(poly_file).unwrap().1;
         let poly_buffered = buffer_polygon(&poly.clone());
 
         Ok(OsmXmlFilter {
@@ -92,7 +92,7 @@ where
         reader: T,
         poly_file: &str,
     ) -> Result<OsmXmlFilter<T>, Box<dyn Error>> {
-        let poly = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
+        let poly = osmgeom::read_multipolygon(poly_file).unwrap().1;
         let poly_buffered = buffer_polygon(&poly.clone());
 
         Ok(OsmXmlFilter {
@@ -354,7 +354,7 @@ mod tests {
         reader: MockReader,
         poly_file: &str,
     ) -> OsmXmlFilter<MockReader> {
-        let poly = osmgeom::read_multipolygon_from_wkt(poly_file).unwrap().1;
+        let poly = osmgeom::read_multipolygon(poly_file).unwrap().1;
         let poly_buffered = buffer_polygon(&poly.clone());
         OsmXmlFilter {
             xmlwriter: OsmXml::new(filename).unwrap(),

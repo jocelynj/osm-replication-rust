@@ -6,9 +6,7 @@ use std::str;
 
 use crate::osm::{self, BoundingBox};
 
-pub fn read_multipolygon_from_wkt(
-    filename: &str,
-) -> Result<(String, MultiPolygon<i64>), Box<dyn Error>> {
+pub fn read_multipolygon(filename: &str) -> Result<(String, MultiPolygon<i64>), Box<dyn Error>> {
     let src = fs::read_to_string(filename)?;
     let mut lines = src.lines();
     let name = String::from(lines.next().unwrap());
@@ -74,7 +72,7 @@ mod tests {
 
     #[test]
     fn read_africa() {
-        let res = read_multipolygon_from_wkt("tests/resources/africa.poly").unwrap();
+        let res = read_multipolygon("tests/resources/africa.poly").unwrap();
         assert_eq!("africa", res.0);
         assert_eq!(1, res.1.0.len()); // number of polygons
 
@@ -118,7 +116,7 @@ mod tests {
     }
     #[test]
     fn read_canarias() {
-        let res = read_multipolygon_from_wkt("tests/resources/canarias.poly").unwrap();
+        let res = read_multipolygon("tests/resources/canarias.poly").unwrap();
         assert_eq!("polygon", res.0);
         assert_eq!(9, res.1.0.len()); // number of polygons
         assert_eq!(8, res.1.0.get(0).unwrap().exterior().coords_count());
@@ -133,7 +131,7 @@ mod tests {
     }
     #[test]
     fn intersects_canarias() {
-        let res = read_multipolygon_from_wkt("tests/resources/canarias.poly").unwrap();
+        let res = read_multipolygon("tests/resources/canarias.poly").unwrap();
         let polygon = res.1;
         assert_eq!(false, point!(x: 0 as i64, y: 0 as i64).intersects(&polygon));
         assert_eq!(
