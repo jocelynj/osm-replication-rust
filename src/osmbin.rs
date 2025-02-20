@@ -1,3 +1,5 @@
+//! Simplified OpenStreetMap database
+
 use serde_json;
 use std::cmp;
 use std::collections::HashMap;
@@ -19,9 +21,9 @@ const WAY_IDX: &str = "way.idx";
 const WAY_DATA: &str = "way.data";
 const WAY_FREE: &str = "way.free";
 
-/// Size of a node-id stored in node.crd or way.data
+/// Size of a node-id stored in `node.crd` or `way.data`
 pub const NODE_ID_SIZE: usize = 5;
-/// Size of a way pointer in way.idx to way.data
+/// Size of a way pointer in `way.idx` to `way.data`
 pub const WAY_PTR_SIZE: usize = 5;
 
 /// Simplified OpenStreetMap database
@@ -32,8 +34,12 @@ pub const WAY_PTR_SIZE: usize = 5;
 ///   8`, thanks to sparse files.
 /// - `way.idx`: stores a pointer into `way.data`, as [`WAY_PTR_SIZE`] bytes. File is directly
 ///   indexed by way id.
-/// - `way.data`: stores a list of nodes id, as `number of nodes` (2-bytes), followed by N node-id
-///   (each using [`NODE_ID_SIZE`] bytes). File is indexed by pointer given by `way.idx`.
+/// - `way.data`: stores a list of nodes id, as `number of nodes` (2-bytes, as OSM limit is 2000),
+///   followed by N node-id (each using [`NODE_ID_SIZE`] bytes). File is indexed by pointer given
+///   by `way.idx`.
+/// - `way.free`: stores pointer to `way.data` of free space, used to update or allocate a new way
+///   without needing to allocate at the end of file. It is filled from ways that are deleted from
+///   database
 pub struct OsmBin {
     dir: String,
     node_crd: bufreaderwriter::BufReaderWriterRand<File>,
@@ -73,9 +79,11 @@ enum OpenMode {
 }
 
 impl OsmBin {
+    /// Access an OsmBin database in read-only mode
     pub fn new(dir: &str) -> Result<OsmBin, io::Error> {
         Self::new_any(dir, &OpenMode::Read)
     }
+    /// Access an OsmBin database in read-write mode
     pub fn new_writer(dir: &str) -> Result<OsmBin, io::Error> {
         Self::new_any(dir, &OpenMode::Write)
     }
@@ -128,6 +136,7 @@ impl OsmBin {
         })
     }
 
+    /// Initialize an OsmBin database with all required files
     pub fn init(dir: &str) {
         match fs::create_dir_all(dir) {
             Ok(()) => (),

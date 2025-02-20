@@ -1,3 +1,5 @@
+//! Cache for nodes/ways/relations
+
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
@@ -6,6 +8,13 @@ use crate::osm::{Node, Relation, Way};
 
 type OsmCacheHashMap<K, V> = FxHashMap<K, V>;
 
+/// Cache for nodes/ways/relations
+///
+/// This cache is filled when reading a diff file the first time by
+/// [`OsmXmlBBox`](crate::osmxml::bbox::OsmXmlBBox) from an [`OsmBin`](crate::osmbin::OsmBin)
+/// database, and reused when generating sub-diffs by
+/// [`OsmXmlFilter`](crate::osmxml::filter::OsmXmlFilter). It only contains enough data to compute
+/// latitude/longitude for nodes, ways, and relations.
 #[derive(Clone, Default)]
 pub struct OsmCache {
     pub(crate) nodes: OsmCacheHashMap<u64, Option<(i32, i32)>>,

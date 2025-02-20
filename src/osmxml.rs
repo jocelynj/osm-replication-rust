@@ -1,3 +1,5 @@
+//! Reader/Writer for OpenStreetMap osm/osc files
+
 use flate2::Compression;
 use flate2::bufread::GzDecoder;
 use flate2::write::GzEncoder;
@@ -24,6 +26,13 @@ enum CurObj {
     Relation(Relation),
 }
 
+/// Reader/Writer for OpenStreetMap osm/osc files
+///
+/// When reading an osm/osc file, it must follow one of these formats.
+/// - [OSM XML](https://wiki.openstreetmap.org/wiki/OSM_XML)
+/// - [OsmChange](https://wiki.openstreetmap.org/wiki/OSM_XML)
+///
+/// Read/written file can be optionally compressed by gzip by adding a `.gz` extension.
 pub struct OsmXml {
     filename: String,
     xmlwriter: Option<Writer<Box<dyn Write>>>,

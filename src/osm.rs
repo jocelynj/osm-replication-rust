@@ -1,3 +1,5 @@
+//! Basic handling of OpenStreetMap data
+
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::cmp::{max, min};
@@ -111,16 +113,19 @@ pub struct Relation {
     pub bbox: Option<BoundingBox>,
 }
 
+/// Way, with its nodes
 pub struct WayFull {
     pub way: Way,
     pub nodes: Vec<Option<Node>>,
 }
 
+/// Relation, with its members
 pub struct RelationFull {
     pub relation: Relation,
     pub members: Vec<ElementFull>,
 }
 
+/// Full Element, used for members of RelationFull
 pub enum ElementFull {
     Node(Option<Node>),
     Way(Option<WayFull>),
@@ -128,13 +133,16 @@ pub enum ElementFull {
 }
 
 #[allow(clippy::cast_possible_truncation)]
+/// Convert a floating-point latitude/longitude to the decimicro format
 pub fn coord_to_decimicro(coord: f64) -> i32 {
     (coord * 1e7).round() as i32
 }
+/// Convert a decimicro latitude/longitude to floating-point
 pub fn decimicro_to_coord(decimicro: i32) -> f64 {
     f64::from(decimicro) * 1e-7
 }
 
+/// Bounding-box of latitude/longitude
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct BoundingBox {
     pub decimicro_minlat: i32,
@@ -143,6 +151,7 @@ pub struct BoundingBox {
     pub decimicro_maxlon: i32,
 }
 impl BoundingBox {
+    /// Expand a bounding-box by another, to get a box containing both
     pub fn expand_bbox(&mut self, bbox2: &BoundingBox) {
         self.decimicro_minlat = min(self.decimicro_minlat, bbox2.decimicro_minlat);
         self.decimicro_maxlat = max(self.decimicro_maxlat, bbox2.decimicro_maxlat);
@@ -151,6 +160,7 @@ impl BoundingBox {
         assert!(self.decimicro_minlat <= self.decimicro_maxlat);
         assert!(self.decimicro_minlon <= self.decimicro_maxlon);
     }
+    /// Expand a bounding-box by a node, to get a box containing both
     pub fn expand_node(&mut self, node: &Node) {
         self.decimicro_minlat = min(self.decimicro_minlat, node.decimicro_lat);
         self.decimicro_maxlat = max(self.decimicro_maxlat, node.decimicro_lat);
@@ -174,6 +184,7 @@ impl BoundingBox {
     }
 }
 
+/// Action to apply to an Element
 #[derive(Clone, PartialEq)]
 pub enum Action {
     Create(),
@@ -182,11 +193,13 @@ pub enum Action {
     None,
 }
 
+/// Reader returning a node/way/relation from an osm id
 pub trait OsmReader {
     fn read_node(&mut self, id: u64) -> Option<Node>;
     fn read_way(&mut self, id: u64) -> Option<Way>;
     fn read_relation(&mut self, id: u64) -> Option<Relation>;
 
+    /// Get a way including all its nodes from an osm id
     fn read_way_full(&mut self, id: u64) -> Option<WayFull> {
         let way = self.read_way(id);
         if let Some(way) = way {
@@ -200,6 +213,9 @@ pub trait OsmReader {
         }
     }
 
+    /// Get a relation including all its member from an osm id
+    ///
+    /// Note that a relation including itself is handled by dropping the inclusion.
     fn read_relation_full(&mut self, id: u64, prev_relations: &[u64]) -> Option<RelationFull> {
         if prev_relations.contains(&id) {
             println!("Detected relation recursion on id={id} - {prev_relations:?}",);
@@ -230,6 +246,7 @@ pub trait OsmReader {
     }
 }
 
+/// Writer writing a new node/way/relation
 pub trait OsmWriter {
     fn write_node(&mut self, node: &mut Node) -> Result<(), io::Error>;
     fn write_way(&mut self, way: &mut Way) -> Result<(), io::Error>;
@@ -261,6 +278,7 @@ pub trait OsmWriter {
     }
 }
 
+/// Trait to update or write a new node/way/relation
 pub trait OsmUpdate: OsmWriter {
     fn update_node(&mut self, node: &mut Node, action: &Action) -> Result<(), io::Error>;
     fn update_way(&mut self, way: &mut Way, action: &Action) -> Result<(), io::Error>;
@@ -270,6 +288,7 @@ pub trait OsmUpdate: OsmWriter {
         action: &Action,
     ) -> Result<(), io::Error>;
 
+    /// Write all nodes/ways/relations found in a given osm/osc[.gz] file
     fn update(&mut self, filename: &str) -> Result<(), Box<dyn Error>>
     where
         Self: Sized,

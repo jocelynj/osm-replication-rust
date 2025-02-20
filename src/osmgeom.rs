@@ -1,3 +1,5 @@
+//! Convert objects to [`geo`] format
+
 use geo;
 use geo::{Coord, LineString, MultiPolygon, Polygon, coord, polygon};
 use std::error::Error;
@@ -6,6 +8,10 @@ use std::str;
 
 use crate::osm::{self, BoundingBox};
 
+/// Generate a [`geo::Polygon`] from a .poly file
+///
+/// The .poly file must follow the format from
+/// [Polygon_Filter_File_Format](https://wiki.openstreetmap.org/wiki/Osmosis/Polygon_Filter_File_Format).
 pub fn read_multipolygon(filename: &str) -> Result<(String, MultiPolygon<i64>), Box<dyn Error>> {
     let src = fs::read_to_string(filename)?;
     let mut lines = src.lines();
@@ -55,6 +61,7 @@ fn read_polygon(lines: &mut str::Lines) -> Polygon<i64> {
     Polygon::new(linestring, vec![])
 }
 
+/// Generate a [`geo::Polygon`] from a [`BoundingBox`]
 pub fn bounding_box_to_polygon(bbox: &BoundingBox) -> Polygon<i64> {
     polygon![
         (x: i64::from(bbox.decimicro_minlon), y: i64::from(bbox.decimicro_minlat)),

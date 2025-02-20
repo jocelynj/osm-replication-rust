@@ -1,3 +1,5 @@
+//! Reader for OpenStreetMap pbf files
+
 use chrono;
 use osmpbfreader;
 use std::error::Error;
@@ -7,11 +9,18 @@ use std::path::Path;
 use crate::osm::{Member, Node, Relation, Way};
 use crate::osm::{OsmCopyTo, OsmWriter};
 
+/// Reader for OpenStreetMap pbf files
+///
+/// Only a few fields are kept from pbf file, as we don’t need all fields for OsmBin database.
+///   - nodes: only latitude and longitude
+///   - ways: only list of nodes
+///   - relations: all fields
 pub struct OsmPbf {
     filename: String,
 }
 
 impl OsmPbf {
+    /// Read a pbf file
     pub fn new(filename: &str) -> Result<OsmPbf, Box<dyn Error>> {
         Ok(OsmPbf {
             filename: filename.to_string(),

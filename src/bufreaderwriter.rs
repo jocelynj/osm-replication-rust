@@ -1,6 +1,8 @@
-// Original code from:
-// - https://crates.io/crates/bufreaderwriter
-// - https://github.com/alemigo/bufreaderwriter-rs
+//! IO Buffer that can be used for both reads and writes
+//!
+//! Original code from:
+//! - <https://crates.io/crates/bufreaderwriter>
+//! - <https://github.com/alemigo/bufreaderwriter-rs>
 
 #![allow(dead_code)]
 #![allow(clippy::match_wildcard_for_single_variants)]
