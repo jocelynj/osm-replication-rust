@@ -1,5 +1,5 @@
 use geo;
-use geo::{coord, polygon, Coord, LineString, MultiPolygon, Polygon};
+use geo::{Coord, LineString, MultiPolygon, Polygon, coord, polygon};
 use std::error::Error;
 use std::fs;
 use std::str;
@@ -70,13 +70,13 @@ pub fn bounding_box_to_polygon(bbox: &BoundingBox) -> Polygon<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use geo::{point, polygon, CoordsIter, Intersects};
+    use geo::{CoordsIter, Intersects, point, polygon};
 
     #[test]
     fn read_africa() {
         let res = read_multipolygon_from_wkt("tests/resources/africa.poly").unwrap();
         assert_eq!("africa", res.0);
-        assert_eq!(1, res.1 .0.len()); // number of polygons
+        assert_eq!(1, res.1.0.len()); // number of polygons
 
         let expected_polygon: Polygon<i64> = polygon![
         (x: 116009200, y: 339987500),
@@ -120,16 +120,16 @@ mod tests {
     fn read_canarias() {
         let res = read_multipolygon_from_wkt("tests/resources/canarias.poly").unwrap();
         assert_eq!("polygon", res.0);
-        assert_eq!(9, res.1 .0.len()); // number of polygons
-        assert_eq!(8, res.1 .0.get(0).unwrap().exterior().coords_count());
-        assert_eq!(55, res.1 .0.get(1).unwrap().exterior().coords_count());
-        assert_eq!(9, res.1 .0.get(2).unwrap().exterior().coords_count());
-        assert_eq!(61, res.1 .0.get(3).unwrap().exterior().coords_count());
-        assert_eq!(69, res.1 .0.get(4).unwrap().exterior().coords_count());
-        assert_eq!(72, res.1 .0.get(5).unwrap().exterior().coords_count());
-        assert_eq!(24, res.1 .0.get(6).unwrap().exterior().coords_count());
-        assert_eq!(33, res.1 .0.get(7).unwrap().exterior().coords_count());
-        assert_eq!(29, res.1 .0.get(8).unwrap().exterior().coords_count());
+        assert_eq!(9, res.1.0.len()); // number of polygons
+        assert_eq!(8, res.1.0.get(0).unwrap().exterior().coords_count());
+        assert_eq!(55, res.1.0.get(1).unwrap().exterior().coords_count());
+        assert_eq!(9, res.1.0.get(2).unwrap().exterior().coords_count());
+        assert_eq!(61, res.1.0.get(3).unwrap().exterior().coords_count());
+        assert_eq!(69, res.1.0.get(4).unwrap().exterior().coords_count());
+        assert_eq!(72, res.1.0.get(5).unwrap().exterior().coords_count());
+        assert_eq!(24, res.1.0.get(6).unwrap().exterior().coords_count());
+        assert_eq!(33, res.1.0.get(7).unwrap().exterior().coords_count());
+        assert_eq!(29, res.1.0.get(8).unwrap().exterior().coords_count());
     }
     #[test]
     fn intersects_canarias() {

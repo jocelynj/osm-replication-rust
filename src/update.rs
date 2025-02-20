@@ -141,7 +141,7 @@ impl Update {
     fn read_state_from_file(filename: &str) -> Result<u64, Error> {
         let content = match fs::read_to_string(filename) {
             Err(err) if err.kind() == ErrorKind::NotFound => {
-                return Err(Error::StateNotFound(filename.to_string()))
+                return Err(Error::StateNotFound(filename.to_string()));
             }
             r => r.unwrap(),
         };

@@ -1,4 +1,4 @@
-use geo::{point, Coord, Geometry, Intersects, MapCoords, MultiPolygon};
+use geo::{Coord, Geometry, Intersects, MapCoords, MultiPolygon, point};
 use geos::{self, Geom};
 use std::collections::HashSet;
 use std::error::Error;

@@ -960,17 +960,40 @@ mod tests {
         assert_eq!(true, rel.is_some());
 
         let rel = osmbin.read_relation(529891);
-        let exp_rel = Relation { id: 529891,
-        members: vec![Member{ref_: 670634766, role: String::from(""), type_: String::from("node")},
-                      Member{ref_: 670634768, role: String::from(""), type_: String::from("node")}],
+        let exp_rel = Relation {
+            id: 529891,
+            members: vec![
+                Member {
+                    ref_: 670634766,
+                    role: String::from(""),
+                    type_: String::from("node"),
+                },
+                Member {
+                    ref_: 670634768,
+                    role: String::from(""),
+                    type_: String::from("node"),
+                },
+            ],
             tags: Some(Vec::from([
-                                (String::from("name"), String::from("Saint-Barthélemy III")),
-                                (String::from("note"), String::from("la Barriere des Quatre Vents")),
-                                (String::from("ref"), String::from("9712303")),
-                                (String::from("site"), String::from("geodesic")),
-                                (String::from("source"), String::from("©IGN 2010 dans le cadre de la cartographie réglementaire")),
-                                (String::from("type"), String::from("site")),
-                                (String::from("url"), String::from("http://ancien-geodesie.ign.fr/fiche_geodesie_OM.asp?num_site=9712303&X=519509&Y=1980304"))])),
+                (String::from("name"), String::from("Saint-Barthélemy III")),
+                (
+                    String::from("note"),
+                    String::from("la Barriere des Quatre Vents"),
+                ),
+                (String::from("ref"), String::from("9712303")),
+                (String::from("site"), String::from("geodesic")),
+                (
+                    String::from("source"),
+                    String::from("©IGN 2010 dans le cadre de la cartographie réglementaire"),
+                ),
+                (String::from("type"), String::from("site")),
+                (
+                    String::from("url"),
+                    String::from(
+                        "http://ancien-geodesie.ign.fr/fiche_geodesie_OM.asp?num_site=9712303&X=519509&Y=1980304",
+                    ),
+                ),
+            ])),
             ..Default::default()
         };
         assert_eq!(exp_rel, rel.unwrap());

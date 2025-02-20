@@ -1,6 +1,6 @@
+use flate2::Compression;
 use flate2::bufread::GzDecoder;
 use flate2::write::GzEncoder;
-use flate2::Compression;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, Event};
 use quick_xml::reader::Reader;
