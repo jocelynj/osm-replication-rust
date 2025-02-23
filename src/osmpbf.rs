@@ -40,7 +40,17 @@ where
 {
     #[allow(clippy::cast_sign_loss)]
     fn copy_to(&mut self, target: &mut T) -> Result<(), Box<dyn Error>> {
-        let r = File::open(Path::new(&self.filename)).unwrap();
+        let r = match File::open(Path::new(&self.filename)) {
+            Err(e) => {
+                let red = anstyle::Style::new().fg_color(Some(anstyle::AnsiColor::Red.into()));
+                eprintln!(
+                    "{red}Error: Please put a valid pbf file on {0}{red:#}",
+                    self.filename
+                );
+                return Err(Box::new(e));
+            }
+            Ok(o) => o,
+        };
         let mut pbf = osmpbfreader::OsmPbfReader::new(r);
 
         target.write_start(false).unwrap();
