@@ -418,7 +418,7 @@ impl OsmReader for OsmBin {
 
 impl OsmWriter for OsmBin {
     fn write_node(&mut self, node: &mut Node) -> Result<(), io::Error> {
-        debug_assert!(node.id > self.prev_node_id);
+        debug_assert!(node.id >= self.prev_node_id);
         self.prev_node_id = node.id;
 
         let lat = Self::coord_to_bytes4(node.decimicro_lat);
@@ -447,7 +447,7 @@ impl OsmWriter for OsmBin {
         Ok(())
     }
     fn write_way(&mut self, way: &mut Way) -> Result<(), io::Error> {
-        debug_assert!(way.id > self.prev_way_id);
+        debug_assert!(way.id >= self.prev_way_id);
         self.prev_way_id = way.id;
 
         let way_idx_addr = way.id * (WAY_PTR_SIZE as u64);
