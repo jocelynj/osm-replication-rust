@@ -1,11 +1,13 @@
 use anstyle;
 use chrono;
+use http::Uri;
 use std::cmp::min;
 use std::fs;
 use std::io;
 use std::io::{BufWriter, ErrorKind};
 use std::os::unix;
 use std::path::Path;
+use std::str::FromStr;
 use std::thread;
 use std::time;
 use thiserror;
@@ -45,7 +47,9 @@ impl Update {
         };
 
         let remote_state = url_diffs.to_string() + "state.txt";
-        let mut remote_state = match Self::read_state_from_url(&remote_state) {
+        let remote_state_uri = Uri::from_str(&remote_state)
+            .unwrap_or_else(|_| panic!("Invalid state Uri: {remote_state}"));
+        let mut remote_state = match Self::read_state_from_url(&remote_state_uri) {
             Err(e) => {
                 let red = anstyle::Style::new().fg_color(Some(anstyle::AnsiColor::Red.into()));
                 eprintln!("{red}Error: Couldn’t download state file from {remote_state}{red:#}");
@@ -84,12 +88,15 @@ impl Update {
             let dest_suffix = String::from("minute/") + n_split + ".osc.gz";
 
             printlnt!("  download");
-            Self::download(&(url_diffs.to_string() + n_split + ".osc.gz"), &orig_diff).unwrap();
-            Self::download(
-                &(url_diffs.to_string() + n_split + ".state.txt"),
-                &orig_state,
-            )
-            .unwrap();
+            let url_diffs_osc_gz = url_diffs.to_string() + n_split + ".osc.gz";
+            let url_diffs_osc_gz = Uri::from_str(&url_diffs_osc_gz)
+                .unwrap_or_else(|_| panic!("Invalid diff Uri: {url_diffs_osc_gz}"));
+            let url_diffs_state_txt = url_diffs.to_string() + n_split + ".state.txt";
+            let url_diffs_state_txt = Uri::from_str(&url_diffs_state_txt)
+                .unwrap_or_else(|_| panic!("Invalid diff Uri: {url_diffs_osc_gz}"));
+
+            Self::download(&url_diffs_osc_gz, &orig_diff).unwrap();
+            Self::download(&url_diffs_state_txt, &orig_state).unwrap();
 
             printlnt!("  bbox");
             match fs::create_dir_all(Path::new(&bbox_diff).parent().unwrap()) {
@@ -148,16 +155,21 @@ impl Update {
         Self::read_state(&content, filename)
     }
 
-    fn read_state_from_url(url: &str) -> Result<u64, Error> {
-        let remote_state = match ureq::get(url)
-            .header("User-Agent", "osm-extract-replication")
-            .call()
-        {
-            Err(e) => return Err(Error::Network(Box::new(e))),
-            Ok(o) => o,
-        };
-        let remote_state = remote_state.into_body().read_to_string().unwrap();
-        Self::read_state(&remote_state, url)
+    fn read_state_from_url(url: &Uri) -> Result<u64, Error> {
+        if url.scheme().is_none_or(|x| x.as_str() == "file") {
+            let filename = format!("/{0}{1}", url.host().unwrap_or(""), url.path());
+            Self::read_state_from_file(&filename)
+        } else {
+            let remote_state = match ureq::get(url)
+                .header("User-Agent", "osm-extract-replication")
+                .call()
+            {
+                Err(e) => return Err(Error::Network(Box::new(e))),
+                Ok(o) => o,
+            };
+            let remote_state = remote_state.into_body().read_to_string().unwrap();
+            Self::read_state(&remote_state, &url.to_string())
+        }
     }
 
     fn read_state(content: &str, source: &str) -> Result<u64, Error> {
@@ -169,11 +181,22 @@ impl Update {
         Err(Error::StateIncorrect(source.to_string()))
     }
 
-    fn download(url: &str, filename: &str) -> Result<(), Error> {
+    fn download(url: &Uri, filename: &str) -> Result<(), Error> {
         match fs::create_dir_all(Path::new(&filename).parent().unwrap()) {
             Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
             r => r.unwrap(),
         };
+        if url.scheme().is_none_or(|x| x.as_str() == "file") {
+            let src = format!("/{0}{1}", url.host().unwrap_or(""), url.path());
+            match fs::copy(&src, filename) {
+                Err(e) => {
+                    let red = anstyle::Style::new().fg_color(Some(anstyle::AnsiColor::Red.into()));
+                    eprintln!("{red}Error when copying {src} to {filename:?}{red:#}");
+                    return Err(Error::IO(e));
+                }
+                Ok(_) => return Ok(()),
+            }
+        }
         let response;
         let mut i: u8 = 0;
         loop {
