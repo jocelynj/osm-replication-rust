@@ -625,6 +625,7 @@ mod tests {
     const PBF_SAINT_BARTHELEMY: &str = "tests/resources/saint_barthelemy.osm.pbf";
     const OSM_WAY_666412102: &str = "tests/resources/way-666412102.osm.gz";
     const OSM_RELATION_17170852: &str = "tests/resources/relation-17170852.osm.gz";
+    const OSM_BOUNDARY_UPDATE: &str = "tests/resources/saint_barthelemy-boundary.osc.gz";
 
     #[macro_export]
     macro_rules! assert_approx_eq {
@@ -1069,6 +1070,64 @@ mod tests {
 
         let rel = osmbin.read_relation(2707694);
         assert_eq!(true, rel.is_none());
+    }
+
+    #[test]
+    fn boundary_update() {
+        let tmpdir_path = tempfile::tempdir().unwrap();
+        let tmpdir = tmpdir_path.path().to_str().unwrap();
+        OsmBin::init(&tmpdir);
+        let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
+        osmbin.import(PBF_SAINT_BARTHELEMY).unwrap();
+
+        assert_eq!(true, osmbin.read_node(2619283348).is_none());
+        assert_approx_eq!(17.9070278, osmbin.read_node(2619283351).unwrap().lat());
+        assert_approx_eq!(17.9005419, osmbin.read_node(2619283352).unwrap().lat());
+        for i in 2619283353..2619283400 {
+            assert_eq!(true, osmbin.read_node(i).is_none());
+        }
+
+        assert_eq!(true, osmbin.read_way(255316715).is_none());
+        assert_eq!(true, osmbin.read_way(255316716).is_none());
+        assert_eq!(true, osmbin.read_way(255316717).is_none());
+        assert_eq!(5, osmbin.read_way(255316718).unwrap().nodes.len());
+        assert_eq!(6, osmbin.read_way(255316725).unwrap().nodes.len());
+        for i in 255316726..255316750 {
+            assert_eq!(true, osmbin.read_way(i).is_none());
+        }
+
+        drop(osmbin);
+        let mut osmbin = OsmBin::new_writer(&tmpdir).unwrap();
+        osmbin.update(OSM_BOUNDARY_UPDATE).unwrap();
+
+        assert_eq!(4, osmbin.stats.num_nodes);
+        assert_eq!(2, osmbin.stats.num_seek_node_crd);
+        assert_eq!(4, osmbin.stats.num_ways);
+        assert_eq!(2, osmbin.stats.num_seek_way_idx);
+
+        assert_approx_eq!(18.1085101, osmbin.read_node(2619283348).unwrap().lat());
+        assert_approx_eq!(17.9070278, osmbin.read_node(2619283351).unwrap().lat());
+        assert_approx_eq!(17.9005419, osmbin.read_node(2619283352).unwrap().lat());
+        assert_approx_eq!(18.1153011, osmbin.read_node(2619283354).unwrap().lat());
+        assert_eq!(true, osmbin.read_node(2619283355).is_none());
+        assert_approx_eq!(18.0159423, osmbin.read_node(2619283356).unwrap().lat());
+        assert_approx_eq!(18.0159415, osmbin.read_node(2619283357).unwrap().lat());
+        for i in 2619283358..2619283400 {
+            assert_eq!(true, osmbin.read_node(i).is_none());
+        }
+
+        assert_eq!(true, osmbin.read_way(255316715).is_none());
+        assert_eq!(3, osmbin.read_way(255316716).unwrap().nodes.len());
+        assert_eq!(true, osmbin.read_way(255316717).is_none());
+        assert_eq!(5, osmbin.read_way(255316718).unwrap().nodes.len());
+        assert_eq!(6, osmbin.read_way(255316725).unwrap().nodes.len());
+        assert_eq!(2, osmbin.read_way(255316727).unwrap().nodes.len());
+        assert_eq!(true, osmbin.read_way(255316728).is_none());
+        assert_eq!(4, osmbin.read_way(255316729).unwrap().nodes.len());
+        assert_eq!(6, osmbin.read_way(255316730).unwrap().nodes.len());
+        for i in 255316731..255316750 {
+            assert_eq!(true, osmbin.read_way(i).is_none());
+        }
     }
 
     #[test]
