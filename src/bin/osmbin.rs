@@ -25,6 +25,8 @@ struct Command {
     pub update: Option<String>,
     #[arg(long, num_args=2, value_names=["ELEM", "ID"], help="Read node/way/relation id from database")]
     pub read: Vec<String>,
+    #[arg(long, help = "Check database")]
+    pub check: bool,
 }
 
 fn main() {
@@ -67,5 +69,12 @@ fn main() {
             }
             _ => panic!("--read option {elem} not recognized"),
         };
+    }
+    if args.command.check {
+        let mut osmbin = osmbin::OsmBin::new(&args.dir).unwrap();
+        if let Err(e) = osmbin.check_database() {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
     }
 }

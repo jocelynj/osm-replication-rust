@@ -4,6 +4,7 @@ use serde_json;
 use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, ErrorKind};
 use std::io::{BufRead, Read, Seek, SeekFrom, Write};
@@ -237,6 +238,99 @@ impl OsmBin {
 
     pub fn get_cache(&mut self) -> OsmCache {
         mem::take(&mut self.cache)
+    }
+
+    fn check_node(&mut self, id: u64) -> Result<(), ElementNotFound> {
+        if self.read_node(id).is_none() {
+            return Err(ElementNotFound {
+                type_: String::from("node"),
+                id,
+                inner: None,
+            });
+        }
+        Ok(())
+    }
+    fn check_way(&mut self, id: u64) -> Result<(), ElementNotFound> {
+        let way = self.read_way(id);
+        if let Some(way) = way {
+            for n in &way.nodes {
+                self.check_node(*n).map_err(|e| ElementNotFound {
+                    type_: String::from("way"),
+                    id,
+                    inner: Some(Box::new(e)),
+                })?;
+            }
+            Ok(())
+        } else {
+            Err(ElementNotFound {
+                type_: String::from("way"),
+                id,
+                inner: None,
+            })
+        }
+    }
+    fn check_relation(&mut self, id: u64, prev_relations: &[u64]) -> Result<(), ElementNotFound> {
+        if prev_relations.contains(&id) {
+            println!("Detected relation recursion on id={id} - {prev_relations:?}",);
+            return Ok(());
+        }
+        let relation = self.read_relation(id);
+        if let Some(relation) = relation {
+            for m in &relation.members {
+                match m.type_.as_str() {
+                    "node" => self.check_node(m.ref_).map_err(|e| ElementNotFound {
+                        type_: String::from("relation"),
+                        id,
+                        inner: Some(Box::new(e)),
+                    })?,
+                    "way" => self.check_way(m.ref_).map_err(|e| ElementNotFound {
+                        type_: String::from("relation"),
+                        id,
+                        inner: Some(Box::new(e)),
+                    })?,
+                    "relation" => {
+                        let mut prev_relations = prev_relations.to_owned();
+                        prev_relations.push(id);
+                        self.check_relation(m.ref_, &prev_relations).map_err(|e| {
+                            ElementNotFound {
+                                type_: String::from("relation"),
+                                id,
+                                inner: Some(Box::new(e)),
+                            }
+                        })?;
+                    }
+                    t => panic!("{t} not expected"),
+                };
+            }
+            Ok(())
+        } else {
+            Err(ElementNotFound {
+                type_: String::from("relation"),
+                id,
+                inner: None,
+            })
+        }
+    }
+    pub fn check_database(&mut self) -> Result<(), Box<dyn Error>> {
+        let relation_dir = Path::new(&self.dir).join("relation");
+        for dir in fs::read_dir(relation_dir)? {
+            let dir = dir?;
+            let filename = dir.file_name();
+            let part0 = filename.to_string_lossy();
+            for dir in fs::read_dir(dir.path())? {
+                let dir = dir?;
+                let filename = dir.file_name();
+                let part1 = filename.to_string_lossy();
+                for f in fs::read_dir(dir.path())? {
+                    let filename = f?.file_name();
+                    let part2 = filename.to_string_lossy();
+                    let id_str = format!("{part0}{part1}{part2}");
+                    let id: u64 = id_str.parse()?;
+                    self.check_relation(id, &[])?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -620,6 +714,30 @@ impl OsmUpdate for OsmBin {
         } else {
             self.write_relation(relation)
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ElementNotFound {
+    type_: String,
+    id: u64,
+    inner: Option<Box<ElementNotFound>>,
+}
+impl ElementNotFound {
+    fn fmt_inner(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
+        write!(f, "\n{}{} {}", " ".repeat(indent), &self.type_, &self.id)?;
+        if let Some(inner) = &self.inner {
+            inner.fmt_inner(f, indent + 2)?;
+        }
+        Ok(())
+    }
+}
+impl Error for ElementNotFound {}
+impl fmt::Display for ElementNotFound {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Element was not found")?;
+        self.fmt_inner(f, 2)?;
+        Ok(())
     }
 }
 
