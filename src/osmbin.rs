@@ -430,7 +430,11 @@ impl OsmWriter for OsmBin {
         if cur_position != node_crd_addr {
             let diff: i64 =
                 i64::try_from(node_crd_addr).unwrap() - i64::try_from(cur_position).unwrap();
-            if self.node_crd_init_size < node_crd_addr && diff > 0 && diff < 4096 {
+            if self.node_crd_init_size < cur_position
+                && self.node_crd_init_size < node_crd_addr
+                && diff > 0
+                && diff < 4096
+            {
                 let vec: Vec<u8> = vec![0; usize::try_from(diff).unwrap()];
                 self.node_crd.write_all(&vec).unwrap();
             } else {
@@ -482,7 +486,11 @@ impl OsmWriter for OsmBin {
         if cur_position != way_idx_addr {
             let diff: i64 =
                 i64::try_from(way_idx_addr).unwrap() - i64::try_from(cur_position).unwrap();
-            if self.way_idx_init_size < way_idx_addr && diff > 0 && diff < 4096 {
+            if self.way_idx_init_size < cur_position
+                && self.way_idx_init_size < way_idx_addr
+                && diff > 0
+                && diff < 4096
+            {
                 let vec: Vec<u8> = vec![0; usize::try_from(diff).unwrap()];
                 self.way_idx.write_all(&vec).unwrap();
             } else {
