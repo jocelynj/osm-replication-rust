@@ -1,6 +1,8 @@
 //! Simplified OpenStreetMap database
 
+use chrono;
 use serde_json;
+use std::borrow::Cow;
 use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
@@ -77,6 +79,12 @@ struct OsmBinStats {
 enum OpenMode {
     Read,
     Write,
+}
+
+macro_rules! printlnt {
+    ($($arg:tt)*) => {
+        println!("{} {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"), format_args!($($arg)*));
+    };
 }
 
 impl OsmBin {
@@ -251,6 +259,9 @@ impl OsmBin {
         Ok(())
     }
     fn check_way(&mut self, id: u64) -> Result<(), ElementNotFound> {
+        if self.cache.ways.contains_key(&id) {
+            return Ok(());
+        }
         let way = self.read_way(id);
         if let Some(way) = way {
             for n in &way.nodes {
@@ -270,6 +281,9 @@ impl OsmBin {
         }
     }
     fn check_relation(&mut self, id: u64, prev_relations: &[u64]) -> Result<(), ElementNotFound> {
+        if self.cache.relations.contains_key(&id) {
+            return Ok(());
+        }
         if prev_relations.contains(&id) {
             println!("Detected relation recursion on id={id} - {prev_relations:?}",);
             return Ok(());
@@ -311,17 +325,31 @@ impl OsmBin {
             })
         }
     }
-    pub fn check_database(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn check_database(&mut self, start: u64) -> Result<(), Box<dyn Error>> {
+        let s0: Cow<str> = format!("{:03}", start / 1_000_000).into();
+        let s1: Cow<str> = format!("{:03}", start / 1_000).into();
+
         let relation_dir = Path::new(&self.dir).join("relation");
-        for dir in fs::read_dir(relation_dir)? {
-            let dir = dir?;
-            let filename = dir.file_name();
-            let part0 = filename.to_string_lossy();
-            for dir in fs::read_dir(dir.path())? {
-                let dir = dir?;
-                let filename = dir.file_name();
-                let part1 = filename.to_string_lossy();
-                for f in fs::read_dir(dir.path())? {
+        let mut dirs = fs::read_dir(relation_dir)?
+            .map(|res| res.map(|e| e.path()))
+            .collect::<Result<Vec<_>, io::Error>>()?;
+        dirs.sort();
+        for dir in dirs {
+            let part0 = dir.file_name().expect("Incorrect string").to_string_lossy();
+            if part0 < s0 {
+                continue;
+            }
+            let mut dirs = fs::read_dir(dir.as_path())?
+                .map(|res| res.map(|e| e.path()))
+                .collect::<Result<Vec<_>, io::Error>>()?;
+            dirs.sort();
+            for dir in dirs {
+                let part1 = dir.file_name().expect("Incorrect string").to_string_lossy();
+                if part1 < s1 {
+                    continue;
+                }
+                printlnt!("{part0}{part1}");
+                for f in fs::read_dir(dir.as_path())? {
                     let filename = f?.file_name();
                     let part2 = filename.to_string_lossy();
                     let id_str = format!("{part0}{part1}{part2}");
