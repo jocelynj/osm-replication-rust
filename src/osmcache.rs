@@ -35,6 +35,12 @@ impl OsmCache {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.nodes.clear();
+        self.ways.clear();
+        self.relations.clear();
+    }
+
     fn read_node(&self, id: u64) -> Option<Node> {
         if let Some(node) = self.nodes.get(&id) {
             if let Some((decimicro_lat, decimicro_lon)) = node {
@@ -232,5 +238,19 @@ mod tests {
     fn read_relation_panic() {
         let osmcache = init_osmcache();
         osmcache.read_relation(24);
+    }
+
+    #[test]
+    fn clear() {
+        let mut osmcache = init_osmcache();
+        assert!(!osmcache.nodes.is_empty());
+        assert!(!osmcache.ways.is_empty());
+        assert!(!osmcache.relations.is_empty());
+
+        osmcache.clear();
+
+        assert!(osmcache.nodes.is_empty());
+        assert!(osmcache.ways.is_empty());
+        assert!(osmcache.relations.is_empty());
     }
 }
