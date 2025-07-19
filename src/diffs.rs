@@ -14,11 +14,16 @@ use crate::osmbin;
 use crate::osmcache::OsmCache;
 use crate::osmxml;
 
+macro_rules! dprintln {
+    ($($arg:tt)*) => (#[cfg(debug_assertions)] println!($($arg)*));
+}
+
 pub struct Poly {
     file: Option<PathBuf>,
-    name: String,
     hier_name: String,
     inners: Vec<Poly>,
+    #[cfg(debug_assertions)]
+    name: String,
 }
 
 pub struct Diff {
@@ -90,13 +95,13 @@ impl Diff {
         &self,
         poly: &Poly,
         orig_diff: &str,
-        lvl: usize,
+        #[cfg(debug_assertions)] lvl: usize,
     ) -> Result<String, Box<dyn Error>> {
         let poly_file = poly
             .file
             .as_ref()
             .expect("poly should have a filename provided");
-        println!("{}{}", " ".repeat(lvl), poly.name);
+        dprintln!("{}{}", " ".repeat(lvl), poly.name);
         let dest_diff_tmp_path = Path::new(&self.dest_diff_dir)
             .join(&poly.hier_name)
             .join(&self.dest_diff_tmp_file);
@@ -168,7 +173,14 @@ impl Diff {
         lvl: usize,
     ) -> Result<(), Box<dyn Error>> {
         let orig_diff: &str = if poly.file.is_some() {
-            &self.generate_diff(poly, orig_diff, lvl).unwrap()
+            &self
+                .generate_diff(
+                    poly,
+                    orig_diff,
+                    #[cfg(debug_assertions)]
+                    lvl,
+                )
+                .unwrap()
         } else {
             orig_diff
         };
@@ -203,9 +215,10 @@ impl Poly {
                         } else {
                             inners.push(Poly {
                                 file: Some(path),
-                                name,
                                 hier_name,
                                 inners: vec![],
+                                #[cfg(debug_assertions)]
+                                name,
                             });
                         }
                     }
@@ -231,17 +244,18 @@ impl Poly {
                 .to_str()
                 .cmp(&b.file.as_ref().unwrap_or(&none_path).to_str())
         });
-        let name;
-        if let Some(ref f) = file {
-            name = f.file_stem().unwrap().to_string_lossy().to_string();
+        #[cfg(debug_assertions)]
+        let name = if let Some(ref f) = file {
+            f.file_stem().unwrap().to_string_lossy().to_string()
         } else {
-            name = String::new();
-        }
+            String::new()
+        };
         Poly {
             file,
-            name,
             hier_name: hier.to_string(),
             inners,
+            #[cfg(debug_assertions)]
+            name,
         }
     }
 
