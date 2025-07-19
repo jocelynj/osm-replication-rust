@@ -339,6 +339,7 @@ impl OsmBin {
             if part0 < s0 {
                 continue;
             }
+            self.cache.clear();
             let mut dirs = fs::read_dir(dir.as_path())?
                 .map(|res| res.map(|e| e.path()))
                 .collect::<Result<Vec<_>, io::Error>>()?;
