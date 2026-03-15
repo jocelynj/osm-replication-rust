@@ -528,7 +528,7 @@ impl OsmReader for OsmBin {
                     self.cache.relations.insert(id, None);
                     return None;
                 }
-                _ => panic!("Error with file {rel_path:?}: {error}"),
+                _ => panic!("Error with file {}: {error}", rel_path.display()),
             },
         };
         let u: Relation = serde_json::from_str(rel_data.as_str()).unwrap();
@@ -735,8 +735,9 @@ impl OsmUpdate for OsmBin {
                 Err(error) => match error.kind() {
                     ErrorKind::NotFound => Ok(()),
                     _ => panic!(
-                        "Couldn’t delete relation {} ({:?}): {error}",
-                        relation.id, rel_path
+                        "Couldn’t delete relation {} ({}): {error}",
+                        relation.id,
+                        rel_path.display()
                     ),
                 },
             }
