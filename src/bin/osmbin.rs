@@ -68,7 +68,7 @@ fn main() {
                 }
             }
             _ => panic!("--read option {elem} not recognized"),
-        };
+        }
     }
     if let Some(check) = args.command.check {
         let mut osmbin = osmbin::OsmBin::new(&args.dir).unwrap();

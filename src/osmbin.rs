@@ -153,7 +153,7 @@ impl OsmBin {
                 ErrorKind::AlreadyExists => (),
                 _ => panic!("Error with directory {dir}: {error}"),
             },
-        };
+        }
 
         for filename in [NODE_CRD, WAY_IDX, WAY_DATA, WAY_FREE] {
             let full_filename = Path::new(dir).join(filename);
@@ -168,7 +168,7 @@ impl OsmBin {
                     ErrorKind::AlreadyExists => (),
                     _ => panic!("Error with file {filename}: {error}"),
                 },
-            };
+            }
         }
         match fs::create_dir_all(Path::new(dir).join("relation")) {
             Ok(()) => (),
@@ -176,7 +176,7 @@ impl OsmBin {
                 ErrorKind::AlreadyExists => (),
                 _ => panic!("Error with directory {dir}: {error}"),
             },
-        };
+        }
     }
 
     pub fn print_stats(&mut self) {
@@ -314,7 +314,7 @@ impl OsmBin {
                         })?;
                     }
                     t => panic!("{t} not expected"),
-                };
+                }
             }
             Ok(())
         } else {
@@ -646,7 +646,7 @@ impl OsmWriter for OsmBin {
                 ErrorKind::AlreadyExists => (),
                 _ => panic!("Error with directory: {error}"),
             },
-        };
+        }
 
         let json_data = serde_json::to_string(relation)?;
         fs::write(&rel_path, json_data)?;

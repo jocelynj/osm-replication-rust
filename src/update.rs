@@ -102,21 +102,21 @@ impl Update {
             match fs::create_dir_all(Path::new(&bbox_diff).parent().unwrap()) {
                 Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
                 r => r.unwrap(),
-            };
+            }
             let mut osmxml = osmxml::bbox::OsmXmlBBox::new_osmbin(&bbox_diff, dir_osmbin).unwrap();
             osmxml.update(&orig_diff).unwrap();
 
             match fs::hard_link(&orig_state, &bbox_state) {
                 Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
                 r => r.unwrap(),
-            };
+            }
 
             let bbox_state_file = dir_diffs.to_string() + "bbox/minute/state.txt";
             let bbox_state_file = Path::new(&bbox_state_file);
             match fs::remove_file(bbox_state_file) {
                 Err(err) if err.kind() == ErrorKind::NotFound => (),
                 r => r.unwrap(),
-            };
+            }
             unix::fs::symlink(n_split.to_string() + ".state.txt", bbox_state_file).unwrap();
 
             printlnt!("  diff generation");
@@ -139,7 +139,7 @@ impl Update {
             match fs::remove_file(state_file) {
                 Err(err) if err.kind() == ErrorKind::NotFound => (),
                 r => r.unwrap(),
-            };
+            }
             unix::fs::symlink(n_split.to_string() + ".state.txt", state_file).unwrap();
         }
         Ok(())
@@ -185,7 +185,7 @@ impl Update {
         match fs::create_dir_all(Path::new(&filename).parent().unwrap()) {
             Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
             r => r.unwrap(),
-        };
+        }
         if url.scheme().is_none_or(|x| x.as_str() == "file") {
             let src = format!("/{0}{1}", url.host().unwrap_or(""), url.path());
             match fs::copy(&src, filename) {
@@ -213,7 +213,7 @@ impl Update {
                     response = o;
                     break;
                 }
-            };
+            }
             println!("Error when fetching {url} - will retry again");
             thread::sleep(time::Duration::from_secs(1));
             i += 1;

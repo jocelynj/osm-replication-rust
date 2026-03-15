@@ -52,7 +52,7 @@ impl Diff {
             dest_state_file = PathBuf::from(prefix.to_owned() + ".state.txt");
         } else {
             panic!("Filename given should end with '.osc.gz': {dest_diff_file}");
-        };
+        }
         Diff {
             dir_osmbin: Some(dir_osmbin.to_string()),
             osmcache: Arc::default(),
@@ -78,7 +78,7 @@ impl Diff {
             dest_state_file = PathBuf::from(prefix.to_owned() + ".state.txt");
         } else {
             panic!("Filename given should end with '.osc.gz': {dest_diff_file}");
-        };
+        }
         Diff {
             dir_osmbin: None,
             osmcache: Arc::new(osmcache),
@@ -108,7 +108,7 @@ impl Diff {
         match fs::create_dir_all(dest_diff_tmp_path.parent().unwrap()) {
             Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
             r => r.unwrap(),
-        };
+        }
         let dest_diff_tmp = dest_diff_tmp_path.to_str().unwrap();
         if self.dir_osmbin.is_none() {
             let reader = self.osmcache.clone();
@@ -129,7 +129,7 @@ impl Diff {
             )
             .unwrap();
             osmxml.update(orig_diff).unwrap();
-        };
+        }
 
         let dest_state_file = Path::new(&self.dest_diff_dir)
             .join(&poly.hier_name)
@@ -137,7 +137,7 @@ impl Diff {
         match fs::hard_link(&self.orig_state_file, &dest_state_file) {
             Err(err) if err.kind() == ErrorKind::AlreadyExists => (),
             r => r.unwrap(),
-        };
+        }
 
         File::open(&dest_diff_tmp_path)
             .unwrap()
@@ -155,7 +155,7 @@ impl Diff {
         match fs::remove_file(&state_file) {
             Err(err) if err.kind() == ErrorKind::NotFound => (),
             r => r.unwrap(),
-        };
+        }
         unix::fs::symlink(
             self.dest_state_file.strip_prefix("minute/").unwrap(),
             &state_file,

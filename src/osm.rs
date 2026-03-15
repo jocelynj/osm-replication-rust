@@ -237,7 +237,7 @@ pub trait OsmReader {
                         ));
                     }
                     t => panic!("{t} not expected"),
-                };
+                }
             }
             Some(RelationFull { relation, members })
         } else {
