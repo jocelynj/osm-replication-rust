@@ -8,26 +8,26 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anstyle = "1.0.10"
-chrono = "0.4.38"
-clap = { version = "4.5.21", features = ["derive"] }
-fd-lock = "4.0.2"
-flate2 = "1.0.35"
-geo = "0.29.2"
-geos = { version = "10.0.0", features = ["geo"] }
-http = "1.2.0"
-osmpbfreader = "0.17.0"
-quick-xml = "0.37.1"
-rayon = "1.10.0"
+anstyle = "1.0.14"
+chrono = "0.4.44"
+clap = { version = "4.6.0", features = ["derive"] }
+fd-lock = "4.0.4"
+flate2 = "1.1.9"
+geo = "0.32.0"
+geos = { version = "11.1.1", features = ["geo"] }
+http = "1.4.0"
+osmpbfreader = "0.19.1"
+quick-xml = "0.39.2"
+rayon = "1.11.0"
 rustc-hash = "2.1.1"
-serde = { version = "1.0.215", features = ["derive"] }
-serde_json = "1.0.133"
-serde_with = "3.11.0"
-thiserror = "2.0.7"
-ureq = "3.0.5"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+serde_with = "3.18.0"
+thiserror = "2.0.18"
+ureq = "3.2.0"
 
 [dev-dependencies]
-tempfile = "3.14.0"
+tempfile = "3.27.0"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
