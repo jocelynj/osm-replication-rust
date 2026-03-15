@@ -203,6 +203,7 @@ impl Poly {
         for entry in fs::read_dir(dir).unwrap() {
             let path = entry.unwrap().path();
             if path.is_file() {
+                #[allow(clippy::collapsible_if)]
                 if let Some(ext) = path.extension() {
                     if ext == "poly" {
                         let name = path.file_stem().unwrap().to_string_lossy().to_string();

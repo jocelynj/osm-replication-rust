@@ -137,6 +137,7 @@ impl PolyInfo {
             return true;
         }
         let way = reader.read_way(id);
+        #[allow(clippy::collapsible_if)]
         if let Some(way) = way {
             if self.nodes_in_poly(reader, &way.nodes) {
                 self.ways_seen_in_poly.insert(id);
@@ -180,6 +181,7 @@ impl PolyInfo {
             return true;
         }
         let relation = reader.read_relation(id);
+        #[allow(clippy::collapsible_if)]
         if let Some(relation) = relation {
             if self.members_in_poly(reader, &relation.members, prev_relations) {
                 self.relations_seen_in_poly.insert(id);
