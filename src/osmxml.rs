@@ -797,13 +797,13 @@ impl OsmWriter for OsmXml {
             elem = elem.with_attribute(("version", version.to_string().as_str()));
         }
         if let Some(timestamp) = &node.timestamp {
-            elem = elem.with_attribute(("timestamp", timestamp.to_string().as_str()));
+            elem = elem.with_attribute(("timestamp", timestamp.as_str()));
         }
         if let Some(uid) = &node.uid {
             elem = elem.with_attribute(("uid", uid.to_string().as_str()));
         }
         if let Some(user) = &node.user {
-            elem = elem.with_attribute(("user".as_bytes(), user.to_string().as_bytes()));
+            elem = elem.with_attribute(("user".as_bytes(), user.as_bytes()));
         }
         if let Some(changeset) = &node.changeset {
             elem = elem.with_attribute(("changeset", changeset.to_string().as_str()));
@@ -843,13 +843,13 @@ impl OsmWriter for OsmXml {
             elem = elem.with_attribute(("version", version.to_string().as_str()));
         }
         if let Some(timestamp) = &way.timestamp {
-            elem = elem.with_attribute(("timestamp", timestamp.to_string().as_str()));
+            elem = elem.with_attribute(("timestamp", timestamp.as_str()));
         }
         if let Some(uid) = &way.uid {
             elem = elem.with_attribute(("uid", uid.to_string().as_str()));
         }
         if let Some(user) = &way.user {
-            elem = elem.with_attribute(("user".as_bytes(), user.to_string().as_bytes()));
+            elem = elem.with_attribute(("user".as_bytes(), user.as_bytes()));
         }
         if let Some(changeset) = &way.changeset {
             elem = elem.with_attribute(("changeset", changeset.to_string().as_str()));
@@ -902,13 +902,13 @@ impl OsmWriter for OsmXml {
             elem = elem.with_attribute(("version", version.to_string().as_str()));
         }
         if let Some(timestamp) = &relation.timestamp {
-            elem = elem.with_attribute(("timestamp", timestamp.to_string().as_str()));
+            elem = elem.with_attribute(("timestamp", timestamp.as_str()));
         }
         if let Some(uid) = &relation.uid {
             elem = elem.with_attribute(("uid", uid.to_string().as_str()));
         }
         if let Some(user) = &relation.user {
-            elem = elem.with_attribute(("user".as_bytes(), user.to_string().as_bytes()));
+            elem = elem.with_attribute(("user".as_bytes(), user.as_bytes()));
         }
         if let Some(changeset) = &relation.changeset {
             elem = elem.with_attribute(("changeset", changeset.to_string().as_str()));
