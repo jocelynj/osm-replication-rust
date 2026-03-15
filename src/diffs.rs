@@ -110,8 +110,8 @@ impl Diff {
             r => r.unwrap(),
         }
         let dest_diff_tmp = dest_diff_tmp_path.to_str().unwrap();
-        if self.dir_osmbin.is_none() {
-            let reader = self.osmcache.clone();
+        if let Some(dir_osmbin) = &self.dir_osmbin {
+            let reader = osmbin::OsmBin::new(dir_osmbin).unwrap();
             let mut osmxml = osmxml::filter::OsmXmlFilter::new_reader(
                 dest_diff_tmp,
                 reader,
@@ -120,8 +120,7 @@ impl Diff {
             .unwrap();
             osmxml.update(orig_diff).unwrap();
         } else {
-            let dir_osmbin: &str = self.dir_osmbin.as_ref().unwrap();
-            let reader = osmbin::OsmBin::new(dir_osmbin).unwrap();
+            let reader = self.osmcache.clone();
             let mut osmxml = osmxml::filter::OsmXmlFilter::new_reader(
                 dest_diff_tmp,
                 reader,

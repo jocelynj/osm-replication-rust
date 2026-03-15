@@ -812,23 +812,21 @@ impl OsmWriter for OsmXml {
             .with_attribute(("lat", node.lat().to_string().as_str()))
             .with_attribute(("lon", node.lon().to_string().as_str()));
 
-        if node.tags.is_none() {
-            elem.write_empty().unwrap();
-        } else {
+        if let Some(tags) = &node.tags {
             elem.write_inner_content(|writer| {
-                if node.tags.is_some() {
-                    for (k, v) in node.tags.as_ref().unwrap() {
-                        writer
-                            .create_element("tag")
-                            .with_attribute(("k".as_bytes(), k.as_bytes()))
-                            .with_attribute(("v".as_bytes(), v.as_bytes()))
-                            .write_empty()
-                            .unwrap();
-                    }
+                for (k, v) in tags {
+                    writer
+                        .create_element("tag")
+                        .with_attribute(("k".as_bytes(), k.as_bytes()))
+                        .with_attribute(("v".as_bytes(), v.as_bytes()))
+                        .write_empty()
+                        .unwrap();
                 }
                 Ok(())
             })
             .unwrap();
+        } else {
+            elem.write_empty().unwrap();
         }
 
         Ok(())
@@ -866,8 +864,8 @@ impl OsmWriter for OsmXml {
                     .write_empty()
                     .unwrap();
             }
-            if way.tags.is_some() {
-                for (k, v) in way.tags.as_ref().unwrap() {
+            if let Some(tags) = &way.tags {
+                for (k, v) in tags {
                     writer
                         .create_element("tag")
                         .with_attribute(("k".as_bytes(), k.as_bytes()))
@@ -926,8 +924,8 @@ impl OsmWriter for OsmXml {
                     .write_empty()
                     .unwrap();
             }
-            if relation.tags.is_some() {
-                for (k, v) in relation.tags.as_ref().unwrap() {
+            if let Some(tags) = &relation.tags {
+                for (k, v) in tags {
                     writer
                         .create_element("tag")
                         .with_attribute(("k".as_bytes(), k.as_bytes()))

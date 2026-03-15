@@ -35,13 +35,13 @@ fn main() {
     if args.command.init {
         osmbin::OsmBin::init(&args.dir);
     }
-    if args.command.import.is_some() {
+    if let Some(import) = &args.command.import {
         let mut osmbin = osmbin::OsmBin::new_writer(&args.dir).unwrap();
-        osmbin.import(&args.command.import.unwrap()).unwrap();
+        osmbin.import(import).unwrap();
     }
-    if args.command.update.is_some() {
+    if let Some(update) = &args.command.update {
         let mut osmbin = osmbin::OsmBin::new_writer(&args.dir).unwrap();
-        osmbin.update(&args.command.update.unwrap()).unwrap();
+        osmbin.update(update).unwrap();
     }
     if !args.command.read.is_empty() {
         let elem = args.command.read[0].clone();
